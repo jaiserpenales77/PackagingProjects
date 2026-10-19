@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Error Code Guide Builder</title>
+<link rel="icon" href="logo.png">
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --navy: #1F3A4D; --gold: #F6B53B; --band: #F5F7FA; --line: #D0D7DE;
+    --text: #222; --muted: #6B7B8C; --bg: #EEF2F6; --card: #fff; --danger: #9C1C1C;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Aptos Narrow", "Segoe UI", Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--navy); color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  header img { height: 44px; background: #fff; border-radius: 6px; padding: 3px; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  .bar { background: var(--gold); padding: 6px 16px; font-weight: 700; color: var(--navy); font-size: 14px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+  .machine { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; }
+  .machine label { font-weight: 700; color: var(--navy); }
+  .machine input { flex: 1; font-size: 18px; font-weight: 700; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; text-transform: uppercase; }
+  button { font: inherit; font-weight: 700; border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
+  .primary { background: var(--navy); color: #fff; }
+  .secondary { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  .ghost { background: transparent; color: var(--muted); padding: 6px 8px; }
+  .ghost:hover { color: var(--navy); }
+  .ghost.del:hover { color: var(--danger); }
+  .table-head { display: grid; grid-template-columns: 1fr 1.3fr 1.4fr 70px; gap: 0; background: var(--gold); color: var(--navy); font-weight: 700; border-radius: 8px 8px 0 0; }
+  .table-head div { padding: 10px 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1.3fr 1.4fr 70px; background: var(--card); border: 1px solid var(--line); border-top: 0; }
+  .row:nth-child(even) { background: var(--band); }
+  .row textarea { width: 100%; min-height: 110px; border: 0; border-right: 1px solid var(--line); background: transparent; padding: 10px 12px; font: inherit; font-size: 15px; resize: vertical; }
+  .row textarea.code { font-weight: 700; font-size: 17px; color: var(--navy); }
+  .row textarea:focus { outline: 2px solid var(--gold); outline-offset: -2px; background: #FFFBEF; }
+  .row .actions { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .field-label { display: none; }
+  .add { margin-top: 12px; width: 100%; background: #fff; color: var(--navy); border: 2px dashed var(--line); padding: 14px; }
+  .add:hover { border-color: var(--navy); }
+  .hint { color: var(--muted); font-size: 13px; margin: 10px 2px 0; }
+  .status { color: var(--muted); font-size: 13px; margin-left: auto; }
+  .empty { background: #fff; border: 1px solid var(--line); border-top: 0; padding: 24px; text-align: center; color: var(--muted); }
+  @media (max-width: 760px) {
+    .table-head { display: none; }
+    .row { grid-template-columns: 1fr; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+    .row textarea { border-right: 0; border-bottom: 1px solid var(--line); min-height: 80px; }
+    .field-label { display: block; background: var(--gold); color: var(--navy); font-weight: 700; font-size: 12px; padding: 4px 12px; }
+    .row .actions { flex-direction: row; justify-content: flex-end; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="">
+  <h1>ERROR CODE GUIDE BUILDER</h1>
+</header>
+<div class="bar">Fill in each error code, then download the Excel guide.</div>
+
+<main>
+  <div class="toolbar">
+    <div class="machine">
+      <label for="machine">MACHINE:</label>
+      <input id="machine" placeholder="e.g. LABELER">
+    </div>
+    <button class="primary" id="download">Download Excel</button>
+    <button class="secondary" id="openBtn">Open Excel</button>
+    <input type="file" id="file" accept=".xlsx" hidden>
+    <button class="secondary" id="example">Load labeler example</button>
+    <button class="ghost del" id="clear">Clear all</button>
+  </div>
+
+  <div class="table-head"><div>ERROR CODE</div><div>POSSIBLE PROBLEM</div><div>STEPS TO FIX</div><div></div></div>
+  <div id="rows"></div>
+  <button class="add" id="add">+ Add error code</button>
+  <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.
+    <span class="status" id="status"></span></p>
+</main>
+
+<script>
+const KEY = "error-code-guide-v1";
+const EXAMPLE = {
+  machine: "LABELER",
+  rows: [
+    ["Missing label", "Label gap sensor not calibrated\nLabels stuck to liner\nPeel plate too far from bottle\nBottles too close together", "Pull the unlabeled bottle(s)\nRe-teach the label gap sensor\nCheck peel plate distance to bottle\nReset error and restart line"],
+    ["Label gap sensor fault", "Sensor not taught for this label\nDirty sensor\nWeb not threaded through sensor", "Check web is threaded through the sensor\nClean sensor\nRun label teach / auto-calibrate\nRestart line"],
+    ["Web break", "Web tension too high\nLiner snagged on a guide\nBad splice or damaged roll", "Remove torn liner\nRe-thread web\nCheck web tension\nRestart line"],
+    ["Low label / End of roll", "Label roll is almost empty or out", "Get next roll (check item # and lot)\nSplice or change roll\nRecord roll change\nRestart line"],
+    ["Splice detected", "Supplier splice in the label roll", "Make sure bottles at the splice were rejected\nCheck labels after splice are correct\nRestart line"],
+    ["Print verification fail", "Coder out of ink / ribbon\nWrong code loaded\nDirty camera lens\nLabel crooked, code out of view", "Pull affected bottles\nCheck code matches batch record\nCheck ink / ribbon, clean print head\nClean camera lens\nNotify QA before restarting"],
+    ["Coder fault", "Ink / ribbon empty\nPrint head dirty or overheated\nCommunication lost", "Check ink / ribbon\nClean print head\nClear coder alarm\nCheck print, then restart line"],
+    ["Consecutive label rejects", "Label placement out of spec\nSensor misaligned\nChangeover not finished", "Check rejected bottles for the cause\nCheck setup settings\nCorrect setting\nRestart line"],
+    ["Reject not confirmed", "Reject air PSI too low\nReject confirm sensor dirty or misaligned", "Find and pull the bottle downstream\nIncrease reject PSI\nTest reject with a bad bottle\nRestart line"],
+    ["Bottle jam / Backup", "Guide rails too tight\nDownstream machine stopped\nFallen bottle", "Clear jam\nCheck guide rail width\nRestart line"],
+    ["Security loop open / Guards open", "Guard bumped or pulled open\nFaulty magnet on guard", "Open and close all guards\nClear errors\nRestart line"],
+  ],
+};
+
+let state = load();
+const $ = (id) => document.getElementById(id);
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && Array.isArray(s.rows)) return s;
+  } catch (e) {}
+  return { machine: "", rows: [["", "", ""], ["", "", ""], ["", "", ""]] };
+}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); $("status").textContent = "Saved on this device"; }
+  catch (e) { $("status").textContent = ""; }
+}
+
+function render() {
+  $("machine").value = state.machine;
+  const box = $("rows");
+  box.innerHTML = "";
+  if (!state.rows.length) {
+    box.innerHTML = '<div class="empty">No error codes yet. Click "+ Add error code" to start.</div>';
+    return;
+  }
+  state.rows.forEach((row, i) => {
+    const el = document.createElement("div");
+    el.className = "row";
+    const fields = [["Error code", "code", "e.g. Missing label"],
+                    ["Possible problem", "", "One problem per line"],
+                    ["Steps to fix", "", "One step per line"]];
+    fields.forEach(([label, cls, ph], j) => {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `<span class="field-label">${label.toUpperCase()}</span>`;
+      const ta = document.createElement("textarea");
+      ta.className = cls;
+      ta.placeholder = ph;
+      ta.value = row[j];
+      ta.addEventListener("input", () => { state.rows[i][j] = ta.value; save(); });
+      wrap.appendChild(ta);
+      el.appendChild(wrap);
+    });
+    const act = document.createElement("div");
+    act.className = "actions";
+    act.innerHTML = `<button class="ghost" title="Move up">▲</button>
+                     <button class="ghost" title="Move down">▼</button>
+                     <button class="ghost del" title="Delete">✕</button>`;
+    const [up, down, del] = act.querySelectorAll("button");
+    up.onclick = () => move(i, -1);
+    down.onclick = () => move(i, 1);
+    del.onclick = () => {
+      if (state.rows[i].some((v) => v.trim()) && !confirm("Delete this error code?")) return;
+      state.rows.splice(i, 1); save(); render();
+    };
+    el.appendChild(act);
+    box.appendChild(el);
+  });
+}
+
+function move(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= state.rows.length) return;
+  [state.rows[i], state.rows[j]] = [state.rows[j], state.rows[i]];
+  save(); render();
+}
+
+const lines = (t) => t.split("\n").map((s) => s.trim()).filter(Boolean);
+const bullets = (t) => lines(t).map((s) => "• " + s).join("\n");
+const numbered = (t) => lines(t).map((s, i) => `${i + 1}. ${s}`).join("\n");
+const strip = (t) => lines(String(t || "")).map((s) => s.replace(/^(•|-|\*|\d+[.)])\s*/, "")).join("\n");
+
+async function download() {
+  const rows = state.rows.filter((r) => r.some((v) => v.trim()));
+  if (!rows.length) { alert("Add at least one error code first."); return; }
+  const NAVY = "FF1F3A4D", GOLD = "FFF6B53B", BAND = "FFF5F7FA", LINE = "FFD0D7DE";
+  const FONT = "Aptos Narrow";
+  const thin = { style: "thin", color: { argb: LINE } };
+  const grid = { top: thin, left: thin, bottom: thin, right: thin };
+  const machine = state.machine.trim().toUpperCase();
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Error Codes", {
+    views: [{ state: "frozen", ySplit: 4, showGridLines: false }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: "4:4" },
+  });
+  ws.columns = [{ width: 38 }, { width: 48 }, { width: 52 }];
+
+  ws.mergeCells("A1:B2");
+  const t = ws.getCell("A1");
+  t.value = machine ? `${machine} ERROR CODE GUIDE` : "ERROR CODE GUIDE";
+  t.font = { name: FONT, size: 24, bold: true, color: { argb: "FFFFFFFF" } };
+  t.alignment = { vertical: "middle", indent: 1 };
+  t.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+  ws.getRow(1).height = ws.getRow(2).height = 26;
+
+  try {
+    const buf = await (await fetch("logo.png")).arrayBuffer();
+    const id = wb.addImage({ buffer: buf, extension: "png" });
+    ws.addImage(id, { tl: { col: 2.05, row: 0.05 }, ext: { width: 70, height: 80 } });
+  } catch (e) { /* logo is optional */ }
+
+  ["ERROR CODE", "POSSIBLE PROBLEM", "STEPS TO FIX"].forEach((h, i) => {
+    const c = ws.getRow(4).getCell(i + 1);
+    c.value = h;
+    c.font = { name: FONT, size: 14, bold: true, color: { argb: NAVY } };
+    c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } };
+    c.alignment = { vertical: "middle", indent: 1 };
+    c.border = grid;
+  });
+  ws.getRow(4).height = 28;
+
+  rows.forEach(([code, prob, fix], i) => {
+    const r = ws.getRow(5 + i);
+    const vals = [code.trim(), bullets(prob), numbered(fix)];
+    vals.forEach((v, j) => {
+      const c = r.getCell(j + 1);
+      c.value = v || null;
+      c.font = { name: FONT, size: j === 0 ? 16 : 13, bold: j === 0, color: { argb: j === 0 ? NAVY : "FF222222" } };
+      c.alignment = { vertical: j === 0 ? "middle" : "top", wrapText: true, indent: 1 };
+      c.border = grid;
+      if (i % 2) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND } };
+    });
+    const n = Math.max(lines(prob).length, lines(fix).length, 1);
+    r.height = Math.max(40, 18 * n + 8);
+  });
+
+  const blob = new Blob([await wb.xlsx.writeBuffer()],
+    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${machine ? machine.replace(/[^\w -]/g, "") + " " : ""}Error Code Guide.xlsx`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function openFile(file) {
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    const grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "", blankrows: true })
+      .map((r) => r.map((v) => String(v ?? "")));
+    const h = grid.findIndex((r) => /^\s*error code\s*$/i.test(r[0] || ""));
+    if (h < 0) { alert('Could not find the "ERROR CODE" header in that file.'); return; }
+    const rows = grid.slice(h + 1)
+      .map((r) => [(r[0] || "").trim(), strip(r[1]), strip(r[2])])
+      .filter((r) => r.some(Boolean));
+    const cell = (r, c) => ((grid[r] || [])[c] || "").trim();
+    const title = cell(0, 0).replace(/ERROR CODE GUIDE/i, "").trim();
+    state = { machine: title || cell(2, 1), rows: rows.length ? rows : [["", "", ""]] };
+    save(); render();
+  } catch (e) {
+    alert("Could not read that file. Make sure it is an .xlsx error code guide.");
+  }
+}
+
+$("machine").addEventListener("input", (e) => { state.machine = e.target.value; save(); });
+$("add").onclick = () => {
+  state.rows.push(["", "", ""]); save(); render();
+  const all = document.querySelectorAll("#rows .row textarea.code");
+  all[all.length - 1].focus();
+};
+$("download").onclick = download;
+$("openBtn").onclick = () => $("file").click();
+$("file").onchange = (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ""; };
+$("example").onclick = () => {
+  if (state.rows.some((r) => r.some((v) => v.trim())) && !confirm("Replace what you have with the labeler example?")) return;
+  state = JSON.parse(JSON.stringify(EXAMPLE)); save(); render();
+};
+$("clear").onclick = () => {
+  if (!confirm("Clear everything and start a blank guide?")) return;
+  state = { machine: "", rows: [["", "", ""]] }; save(); render();
+};
+render();
+</script>
+</body>
+</html>
