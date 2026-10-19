@@ -18,7 +18,7 @@
   header img { height: 44px; background: #fff; border-radius: 6px; padding: 3px; }
   header h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
   .bar { background: var(--gold); padding: 6px 16px; font-weight: 700; color: var(--navy); font-size: 14px; }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  main { max-width: 1260px; margin: 0 auto; padding: 16px; }
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
   .machine { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; }
   .machine label { font-weight: 700; color: var(--navy); }
@@ -29,9 +29,9 @@
   .ghost { background: transparent; color: var(--muted); padding: 6px 8px; }
   .ghost:hover { color: var(--navy); }
   .ghost.del:hover { color: var(--danger); }
-  .table-head { display: grid; grid-template-columns: 1fr 1.3fr 1.4fr 70px; gap: 0; background: var(--gold); color: var(--navy); font-weight: 700; border-radius: 8px 8px 0 0; }
+  .table-head { display: grid; grid-template-columns: 1fr 1.2fr 1.35fr 200px 60px; gap: 0; background: var(--gold); color: var(--navy); font-weight: 700; border-radius: 8px 8px 0 0; }
   .table-head div { padding: 10px 12px; }
-  .row { display: grid; grid-template-columns: 1fr 1.3fr 1.4fr 70px; background: var(--card); border: 1px solid var(--line); border-top: 0; }
+  .row { display: grid; grid-template-columns: 1fr 1.2fr 1.35fr 200px 60px; background: var(--card); border: 1px solid var(--line); border-top: 0; }
   .row:nth-child(even) { background: var(--band); }
   .row > div:not(.actions) { display: flex; flex-direction: column; }   /* column dividers run the full row height */
   .row > div > textarea, .row > div > .steps { flex: 1; }
@@ -48,6 +48,24 @@
   .add-step:hover { color: var(--navy); }
   .row .actions { display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .field-label { display: none; }
+  .pic-cell { border-right: 1px solid var(--line); padding: 10px; gap: 6px; }
+  .pic-cell img { width: 100%; border-radius: 6px; border: 1px solid var(--line); cursor: zoom-in; display: block; }
+  .pic-cell .small, .map-card .small { color: var(--muted); font-size: 12px; text-align: center; }
+  .add-pic { background: #fff; border: 2px dashed var(--line); color: var(--muted); width: 100%; padding: 22px 8px; font-size: 13px; }
+  .add-pic:hover { border-color: var(--navy); color: var(--navy); }
+  .map-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;
+              display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .map-card .what { flex: 1 1 260px; }
+  .map-card .what b { color: var(--navy); }
+  .map-card .what .small { text-align: left; margin-top: 2px; }
+  .map-card img { max-height: 150px; max-width: 240px; border-radius: 6px; border: 1px solid var(--line); cursor: zoom-in; display: block; }
+  .map-card .add-pic { width: 240px; }
+  #picDlg { max-width: 1100px; }
+  .pic-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .pic-tools button { padding: 7px 11px; }
+  .pic-tools button.on { background: var(--navy); color: #fff; }
+  .pic-stage { background: #2b2b2b; display: flex; justify-content: center; align-items: center; }
+  .pic-stage canvas { max-width: 100%; max-height: 68vh; touch-action: none; cursor: crosshair; display: block; }
   .add { margin-top: 12px; width: 100%; background: #fff; color: var(--navy); border: 2px dashed var(--line); padding: 14px; }
   .add:hover { border-color: var(--navy); }
   .hint { color: var(--muted); font-size: 13px; margin: 10px 2px 0; }
@@ -86,6 +104,8 @@
     .row .steps textarea { border-bottom: 0; }
     .field-label { display: block; background: var(--gold); color: var(--navy); font-weight: 700; font-size: 12px; padding: 4px 12px; }
     .row .actions { flex-direction: row; justify-content: flex-end; }
+    .pic-cell { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 10px; }
+    .pic-cell img, .pic-cell .add-pic { width: calc(100% - 20px); margin: 0 10px; }
   }
 </style>
 </head>
@@ -117,14 +137,46 @@
     <button class="secondary" id="example">Load UNI-300VA example</button>
   </div>
 
-  <div class="table-head"><div>ERROR CODE</div><div>POSSIBLE PROBLEM</div><div>STEPS TO FIX</div><div></div></div>
+  <div class="map-card">
+    <div class="what"><b>MACHINE PICTURE</b>
+      <div class="small">A labeled photo of the whole machine so people can find each screen and part.
+        It goes on its own "Machine Map" tab in the Excel file.</div></div>
+    <div id="mapSlot"></div>
+  </div>
+
+  <div class="table-head"><div>ERROR CODE</div><div>POSSIBLE PROBLEM</div><div>STEPS TO FIX</div><div>PICTURE</div><div></div></div>
   <div id="rows"></div>
   <button class="add" id="add">+ Add error code</button>
-  <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.</p>
+  <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.
+    Add a picture to an error code, then mark the problem area with a box, circle, arrow or label.</p>
   <p class="hint"><b>Your work saves automatically</b> in this browser as you type, so you can close the app and pick up where you left off.
     To open your guides on another computer, turn on <b>☁ Cloud save</b> once, then on the other computer click it and type your password. You can also click <b>Download Excel</b>
     and use <b>Open Excel</b> on the other computer.</p>
 </main>
+
+<dialog id="picDlg">
+  <h2 id="picTitle">Picture</h2>
+  <div class="pic-tools">
+    <span>Mark the area:</span>
+    <button class="secondary on" data-tool="box">▭ Box</button>
+    <button class="secondary" data-tool="circle">◯ Circle</button>
+    <button class="secondary" data-tool="arrow">➜ Arrow</button>
+    <button class="secondary" data-tool="text">T Label</button>
+    <button class="ghost" id="picUndo">↶ Undo</button>
+    <label><input type="checkbox" id="picDim" checked> Dim the rest</label>
+  </div>
+  <div class="pic-stage"><canvas id="picCanvas"></canvas></div>
+  <div class="dlg">
+    <div class="small" id="picHelp">Drag on the photo to draw. For a label, pick "T Label" and click where it should go.</div>
+    <div class="row2">
+      <button class="ghost del" id="picRemove">Remove picture</button>
+      <button class="secondary" id="picReplace">Use a different photo</button>
+      <button class="ghost" id="picCancel">Cancel</button>
+      <button class="primary" id="picSave">Save picture</button>
+    </div>
+  </div>
+</dialog>
+<input type="file" id="picFile" accept="image/*" hidden>
 
 <dialog id="cloudDlg">
   <h2>☁ Cloud save</h2>
@@ -179,21 +231,23 @@
 const KEY = "error-code-guide-v1";
 const EXAMPLE = {
   machine: "UNI-300VA LABELER",
+  map: "",
   rows: [
-    ["Consecutive inspection error\n(Optel screen)", "Labels crooked or wrinkled\nLot / exp code missing, faded or wrong\nWrong label roll loaded", "Stop the line and pull the rejected bottles\nLook at the rejects: label straight? code clear and correct?\nCheck the label roll is the right item # for this batch\nFix what you found (see the matching error below)\nReset the error and restart the line\nWatch the next bottles and tell your lead"],
-    ["Code verification fail\n(Optel screen)", "Lot / exp code missing or faded\nRibbon wrinkled or running out\nWrong code loaded on the coder", "Pull the affected bottles and set them aside for QA\nCheck the code on the label matches the batch record\nCheck the coder ribbon (see ribbon errors)\nReset the error and restart the line\nTell your lead / QA"],
-    ["Missing label / Label presence fail\n(Labeler or Optel screen)", "Labeler ran out of labels\nLabels stuck to each other or to the liner\nLabel web not threaded right", "Pull the unlabeled bottles\nCheck the label roll and that the web follows the threading diagram\nRemove any stuck or folded labels\nReset the error and restart the line"],
-    ["Low label\n(Labeler screen)", "Label roll is almost empty", "Get the next roll ready\nCheck the item # and lot match the batch record\nChange the roll when it runs out\nRecord the roll change"],
-    ["Out of labels / End of roll\n(Labeler screen)", "Label roll is empty", "Stop the line\nLoad the new roll (check item # and lot)\nThread the web using the diagram on the machine\nRecord the roll change\nReset the error and restart the line\nCheck the first labeled bottles"],
-    ["Label web break\n(Labeler screen)", "Label liner torn\nLiner caught on a guide\nBad splice in the roll", "Stop the line\nRemove the torn liner\nRe-thread the web using the diagram on the machine\nReset the error and restart the line\nCheck the first labeled bottles"],
-    ["Ribbon low / Ribbon out\n(Videojet screen)", "Coder ribbon almost used up or empty", "Stop the line\nOpen the coder cassette and replace the ribbon\nFollow the threading diagram inside the cassette\nClose and lock the cassette\nCheck the screen shows RUNNING\nRestart the line and check the first codes"],
-    ["Ribbon break / Ribbon fault\n(Videojet screen)", "Ribbon torn or slipped off\nRibbon threaded wrong\nCassette not locked", "Stop the line\nOpen the cassette and re-thread or replace the ribbon\nClose and lock the cassette\nClear the message on the coder screen\nRestart the line and check the first codes"],
-    ["Coder not ready / Printer offline\n(Videojet screen)", "Coder is stopped or paused\nCassette open or message not cleared\nNo job (code) selected", "Check the message on the Videojet screen and clear it\nMake sure the correct job is selected and matches the batch record\nPress start - the screen should show green RUNNING\nRestart the line and check the first codes"],
-    ["Bottle jam / Fallen bottle\n(Labeler screen)", "Bottle fell over or got stuck\nDamaged or wrong bottles on the line", "Stop the line before reaching in\nRemove the fallen or jammed bottles\nReset the error and restart the line"],
-    ["Indexing wheel fault\n(Labeler screen)", "Bottle stuck at the indexing wheel\nBottles crowded at the infeed", "Stop the line\nRemove the stuck bottle at the indexing wheel\nReset the error and restart the line"],
-    ["Reject bin full\n(Labeler screen)", "Reject bin is full", "Empty the reject bin and keep rejects separate\nReset the error and restart the line"],
-    ["Guard door open\n(Labeler screen)", "A guard door is open or not fully closed", "Close all guard doors until they latch\nReset the error and restart the line"],
-    ["Emergency stop pressed\n(Labeler screen)", "Someone pressed the red E-stop button", "Make sure the area is safe and everyone is clear\nTwist or pull the E-stop button to release it\nReset the error and restart the line"],
+    ["Vision inspection fail / Consecutive inspection error\n(Labeler + Optel screens)", "Labels crooked or wrinkled\nLot / exp code missing, faded or wrong\nWrong label roll loaded", "Stop the line and pull the rejected bottles\nOn the Optel screen, find the check that says Reject (Lot / Exp, Label code, Barcode or Label presence)\nLook at the rejects: label straight? code clear and correct?\nCheck the label roll is the right item # for this batch\nFix what you found (see the matching error below)\nPress RESET ALARM on the labeler screen and restart the line\nWatch the next bottles and tell your lead", ""],
+    ["Code verification fail\n(Optel screen)", "Lot / exp code missing or faded\nRibbon wrinkled or running out\nWrong code loaded on the coder", "Pull the affected bottles and set them aside for QA\nOn the Optel screen, check OCV 1 (lot / exp) and OCV 2 (label code)\nCheck the code on the label matches the batch record\nCheck the coder ribbon (see ribbon errors)\nPress RESET ALARM on the labeler screen and restart the line\nTell your lead / QA", ""],
+    ["Unexpected product\n(Optel warning)", "Wrong label roll loaded\nWrong recipe selected on the Optel\nA label from another product got mixed in", "Stop the line\nCheck the Recipe on the Optel screen matches the batch record\nCheck the label roll item # matches the batch record\nPull any bottles with the wrong label and set them aside\nCall your lead / QA - do not press Accept Warning on your own", ""],
+    ["Missing label / Label presence fail\n(Labeler or Optel screen)", "Labeler ran out of labels\nLabels stuck to each other or to the liner\nLabel web not threaded right", "Pull the unlabeled bottles\nCheck the label roll and that the web follows the threading diagram\nRemove any stuck or folded labels\nPress RESET ALARM on the labeler screen and restart the line", ""],
+    ["Low label\n(Labeler screen)", "Label roll is almost empty", "Get the next roll ready\nCheck the item # and lot match the batch record\nChange the roll when it runs out\nRecord the roll change", ""],
+    ["Out of labels / End of roll\n(Labeler screen)", "Label roll is empty", "Stop the line\nLoad the new roll (check item # and lot)\nThread the web using the diagram on the machine\nRecord the roll change\nPress RESET ALARM on the labeler screen and restart the line\nCheck the first labeled bottles", ""],
+    ["Label web break\n(Labeler screen)", "Label liner torn\nLiner caught on a guide\nBad splice in the roll", "Stop the line\nRemove the torn liner\nRe-thread the web using the diagram on the machine\nPress RESET ALARM on the labeler screen and restart the line\nCheck the first labeled bottles", ""],
+    ["Ribbon low / Ribbon out\n(Videojet screen)", "Coder ribbon almost used up or empty", "Check the ribbon level on the Videojet screen\nStop the line\nOpen the coder cover and replace the ribbon\nFollow the threading diagram inside the cassette\nClose and lock the cassette\nCheck the screen shows RUNNING\nRestart the line and check the first codes", ""],
+    ["Ribbon break / Ribbon fault\n(Videojet screen)", "Ribbon torn or slipped off\nRibbon threaded wrong\nCassette not locked", "Stop the line\nOpen the coder cover and re-thread or replace the ribbon\nClose and lock the cassette\nClear the message on the coder screen\nRestart the line and check the first codes", ""],
+    ["Coder not ready / Printer offline\n(Videojet screen)", "Coder is stopped or paused\nCassette open or message not cleared\nNo job (code) selected", "Check the message on the Videojet screen and clear it\nMake sure the JOB shown matches the batch record\nPress the green I (start) button - the screen should show green RUNNING\nRestart the line and check the first codes", ""],
+    ["Bottle jam / Fallen bottle\n(Labeler screen)", "Bottle fell over or got stuck\nDamaged or wrong bottles on the line", "Press STOP before reaching in\nRemove the fallen or jammed bottles\nPress RESET ALARM on the labeler screen and restart the line", ""],
+    ["Indexing wheel fault\n(Labeler screen)", "Bottle stuck at the indexing wheel\nBottles crowded at the infeed", "Stop the line\nRemove the stuck bottle at the indexing wheel\nPress RESET ALARM on the labeler screen and restart the line", ""],
+    ["Reject bin full\n(Labeler screen)", "Reject bin is full", "Empty the reject bin and keep rejects separate\nPress RESET ALARM on the labeler screen and restart the line", ""],
+    ["Guard door open\n(Labeler screen)", "A guard door is open or not fully closed", "Close all guard doors until they latch\nPress RESET ALARM on the labeler screen and restart the line", ""],
+    ["Emergency stop pressed\n(Labeler screen)", "Someone pressed a red E-stop button", "Make sure the area is safe and everyone is clear\nTwist or pull the E-stop button to release it\nPress RESET ALARM on the labeler screen\nRestart the line", ""],
   ],
 };
 const NOTE = "NOTE: If these steps don't fix it, or the same error keeps coming back, stop the line and call your lead or mechanic. Do not change machine settings.";
@@ -203,7 +257,8 @@ const STORE = "error-code-guides-v2";
 const OLD_KEY = "error-code-guide-v1";
 const blankGuide = () => ({ machine: "", rows: [["", "", ""], ["", "", ""], ["", "", ""]], updated: Date.now() });
 const newId = () => "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const hasContent = (g) => !!(g.machine.trim() || g.rows.some((r) => r.some((v) => v.trim())));
+const filled = (v) => !!(v && String(v).trim());
+const hasContent = (g) => !!(filled(g.machine) || filled(g.map) || g.rows.some((r) => r.some(filled)));
 // deleted guides stay behind as {deleted, updated} markers so the delete reaches other computers
 const liveIds = (db) => Object.keys(db.guides).filter((id) => !db.guides[id].deleted)
   .sort((a, b) => db.guides[b].updated - db.guides[a].updated);
@@ -284,6 +339,9 @@ function notice(html, ms) {
 
 function render() {
   $("machine").value = state.machine;
+  const ms = $("mapSlot");
+  ms.innerHTML = "";
+  ms.appendChild(picCell(mapTarget(), true));
   const box = $("rows");
   box.innerHTML = "";
   if (!state.rows.length) {
@@ -312,6 +370,7 @@ function render() {
       wrap.appendChild(ta);
       el.appendChild(wrap);
     });
+    el.appendChild(picCell(rowTarget(i)));
     const act = document.createElement("div");
     act.className = "actions";
     act.innerHTML = `<button class="ghost" title="Move up">▲</button>
@@ -321,8 +380,8 @@ function render() {
     up.onclick = () => move(i, -1);
     down.onclick = () => move(i, 1);
     del.onclick = () => {
-      if (state.rows[i].some((v) => v.trim()) && !confirm("Delete this error code?")) return;
-      state.rows.splice(i, 1); save(); render();
+      if (state.rows[i].some(filled) && !confirm("Delete this error code?")) return;
+      state.rows.splice(i, 1); save(); render(); prunePics();
     };
     el.appendChild(act);
     box.appendChild(el);
@@ -415,6 +474,258 @@ function listEditor(i, j) {
   return box;
 }
 
+// ---------------------------------------------------------------- pictures
+// A picture is a file path next to the app, or "img:<id>" (a photo added here, kept in this browser
+// and synced by cloud save). Marks are drawn into the photo when it is saved.
+// Photos live in the browser's database (IndexedDB), which has far more room than the guides' storage.
+const OLD_PICS = "error-guide-pics-v1";
+let picStore = {}, picsReady = false;
+const picSrc = (ref) => !ref ? "" : ref.startsWith("img:") ? picStore[ref.slice(4)] || "" : ref;
+const picDB = (() => {
+  let opening = null;
+  const open = () => opening || (opening = new Promise((ok, bad) => {
+    const r = indexedDB.open("error-code-guide", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("pics");
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => bad(r.error);
+  }));
+  const run = async (mode, fn) => {
+    const d = await open();
+    return new Promise((ok, bad) => {
+      const t = d.transaction("pics", mode);
+      const req = fn(t.objectStore("pics"));
+      t.oncomplete = () => ok(req && req.result);
+      t.onerror = t.onabort = () => bad(t.error);
+    });
+  };
+  return {
+    all: () => run("readonly", (st) => st.getAll()).then(async (values) => {
+      const keys = await run("readonly", (st) => st.getAllKeys());
+      return Object.fromEntries(keys.map((k, i) => [k, values[i]]));
+    }),
+    put: (id, v) => run("readwrite", (st) => st.put(v, id)),
+    del: (id) => run("readwrite", (st) => st.delete(id)),
+  };
+})();
+async function loadPics() {
+  try {
+    Object.assign(picStore, await picDB.all());
+    const old = JSON.parse(localStorage.getItem(OLD_PICS) || "null");  // photos saved by the previous version
+    if (old) {
+      for (const [id, v] of Object.entries(old)) { picStore[id] = v; await picDB.put(id, v); }
+      localStorage.removeItem(OLD_PICS);
+    }
+  } catch (e) { /* no database: photos still work until the page is closed */ }
+  picsReady = true;
+}
+async function keepPic(id, dataUrl) {
+  picStore[id] = dataUrl;
+  try { await picDB.put(id, dataUrl); return true; }
+  catch (e) {
+    alert("This browser could not save the picture (it may be out of room, or in a private window). Use Download Excel to keep a copy.");
+    return false;
+  }
+}
+async function storePic(dataUrl) {
+  let id;
+  try {
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(dataUrl));
+    id = [...new Uint8Array(hash)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch (e) { id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  return (await keepPic(id, dataUrl)) ? "img:" + id : null;
+}
+function usedPics() {
+  const used = new Set();
+  Object.values(db.guides).forEach((g) => {
+    if (g.deleted) return;
+    if (g.map) used.add(g.map);
+    g.rows.forEach((r) => { if (r[3]) used.add(r[3]); });
+  });
+  return used;
+}
+function prunePics() {  // forget photos no guide uses any more
+  if (!picsReady) return;
+  const used = usedPics();
+  Object.keys(picStore).filter((id) => !used.has("img:" + id)).forEach((id) => {
+    delete picStore[id];
+    picDB.del(id).catch(() => {});
+  });
+}
+
+const loadImage = (src) => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = src; });
+async function fileToDataUrl(file, max = 1400) {  // shrink phone photos so they fit in the browser and the Excel file
+  const url = URL.createObjectURL(file);
+  try {
+    const im = await loadImage(url);
+    const k = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.82);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+const rowTarget = (i) => ({
+  title: () => (state.rows[i][0] || "").split("\n")[0] || "Error code " + (i + 1),
+  get: () => state.rows[i][3] || "",
+  set: (ref) => { state.rows[i][3] = ref; },
+});
+const mapTarget = () => ({ title: () => "Machine picture", get: () => state.map || "", set: (ref) => { state.map = ref; } });
+
+function picCell(target, isMap) {
+  const cell = document.createElement("div");
+  cell.className = isMap ? "" : "pic-cell";
+  if (!isMap) cell.innerHTML = '<span class="field-label">PICTURE</span>';
+  const ref = target.get(), src = picSrc(ref);
+  if (src) {
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = target.title();
+    img.title = "Click to mark or change";
+    img.onclick = () => openPicEditor(target, src, false);
+    cell.appendChild(img);
+    if (!isMap) cell.insertAdjacentHTML("beforeend", '<div class="small">Click to mark or change</div>');
+  } else if (ref) {
+    cell.insertAdjacentHTML("beforeend", `<div class="small">${picsReady ? "Picture is downloading from cloud save…" : "Loading picture…"}</div>`);
+  } else {
+    const add = document.createElement("button");
+    add.className = "add-pic";
+    add.type = "button";
+    add.textContent = isMap ? "+ Add machine picture" : "+ Add picture";
+    add.onclick = () => pickPhoto((dataUrl) => openPicEditor(target, dataUrl, true));
+    cell.appendChild(add);
+  }
+  return cell;
+}
+
+let photoPicked = null;
+function pickPhoto(then) { photoPicked = then; $("picFile").click(); }
+$("picFile").onchange = async (e) => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f || !photoPicked) return;
+  try { photoPicked(await fileToDataUrl(f)); }
+  catch (err) { alert("Could not open that photo. Try a JPG or PNG picture."); }
+};
+
+// marking tool
+const RED = "#E53935";
+const ed = { target: null, img: null, marks: [], tool: "box", draft: null, isNew: false };
+const pdlg = $("picDlg"), canvas = $("picCanvas"), ctx = canvas.getContext("2d");
+
+async function openPicEditor(target, src, isNew) {
+  ed.target = target; ed.isNew = isNew; ed.marks = []; ed.draft = null;
+  ed.img = await loadImage(src);
+  canvas.width = ed.img.naturalWidth; canvas.height = ed.img.naturalHeight;
+  $("picTitle").textContent = target.title();
+  $("picRemove").hidden = isNew;
+  redraw();
+  if (!pdlg.open) pdlg.showModal();
+}
+
+function lineWidth(W, H) { return Math.max(4, Math.round(Math.max(W, H) / 220)); }
+function shapePath(c, m) {
+  const x = Math.min(m.x1, m.x2), y = Math.min(m.y1, m.y2), w = Math.abs(m.x2 - m.x1), h = Math.abs(m.y2 - m.y1);
+  c.beginPath();
+  if (m.t === "circle") c.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
+  else c.roundRect(x, y, w, h, Math.min(18, w / 4, h / 4));
+}
+function drawMarks(c, W, H, marks, dim) {
+  const lw = lineWidth(W, H);
+  const areas = marks.filter((m) => m.t === "box" || m.t === "circle");
+  if (dim && areas.length) {  // darken everything except the marked areas
+    const o = document.createElement("canvas");
+    o.width = W; o.height = H;
+    const oc = o.getContext("2d");
+    oc.fillStyle = "rgba(0,0,0,0.45)";
+    oc.fillRect(0, 0, W, H);
+    oc.globalCompositeOperation = "destination-out";
+    oc.fillStyle = "#000";  // cut the marked areas fully out of the dark layer
+    areas.forEach((m) => { shapePath(oc, m); oc.fill(); });
+    c.drawImage(o, 0, 0);
+  }
+  c.lineJoin = c.lineCap = "round";
+  marks.forEach((m) => {
+    if (m.t === "box" || m.t === "circle") {
+      shapePath(c, m);
+      c.strokeStyle = "#fff"; c.lineWidth = lw + 5; c.stroke();
+      c.strokeStyle = RED; c.lineWidth = lw; c.stroke();
+    } else if (m.t === "arrow") {
+      const ang = Math.atan2(m.y2 - m.y1, m.x2 - m.x1), head = lw * 5;
+      const pts = [[m.x2 - head * Math.cos(ang - 0.45), m.y2 - head * Math.sin(ang - 0.45)],
+                   [m.x2 - head * Math.cos(ang + 0.45), m.y2 - head * Math.sin(ang + 0.45)]];
+      [["#fff", lw + 5], [RED, lw]].forEach(([col, w]) => {
+        c.strokeStyle = col; c.lineWidth = w;
+        c.beginPath(); c.moveTo(m.x1, m.y1); c.lineTo(m.x2, m.y2);
+        c.moveTo(pts[0][0], pts[0][1]); c.lineTo(m.x2, m.y2); c.lineTo(pts[1][0], pts[1][1]);
+        c.stroke();
+      });
+    } else if (m.t === "text") {
+      const fs = Math.max(18, Math.round(Math.max(W, H) / 34)), pad = Math.round(fs / 3);
+      c.font = `bold ${fs}px "Segoe UI", Arial, sans-serif`;
+      const w = c.measureText(m.s).width + pad * 2, h = fs + pad * 2;
+      const x = Math.min(Math.max(4, m.x1 - w / 2), W - w - 4), y = Math.min(Math.max(4, m.y1 - h / 2), H - h - 4);
+      c.beginPath(); c.roundRect(x, y, w, h, h / 3);
+      c.fillStyle = RED; c.fill();
+      c.strokeStyle = "#fff"; c.lineWidth = 3; c.stroke();
+      c.fillStyle = "#fff"; c.textBaseline = "middle";
+      c.fillText(m.s, x + pad, y + h / 2 + 1);
+    }
+  });
+}
+function redraw() {
+  ctx.drawImage(ed.img, 0, 0);
+  drawMarks(ctx, canvas.width, canvas.height, ed.draft ? [...ed.marks, ed.draft] : ed.marks, $("picDim").checked);
+}
+function canvasPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height };
+}
+canvas.addEventListener("pointerdown", (e) => {
+  const p = canvasPoint(e);
+  if (ed.tool === "text") {
+    const s = (prompt("Label text (for example: Press RESET ALARM)") || "").trim();
+    if (s) { ed.marks.push({ t: "text", x1: p.x, y1: p.y, s }); redraw(); }
+    return;
+  }
+  canvas.setPointerCapture(e.pointerId);
+  ed.draft = { t: ed.tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!ed.draft) return;
+  const p = canvasPoint(e);
+  ed.draft.x2 = p.x; ed.draft.y2 = p.y;
+  redraw();
+});
+canvas.addEventListener("pointerup", () => {
+  if (!ed.draft) return;
+  const d = ed.draft, min = canvas.width / 80;
+  if (Math.abs(d.x2 - d.x1) > min || Math.abs(d.y2 - d.y1) > min) ed.marks.push(d);
+  ed.draft = null;
+  redraw();
+});
+document.querySelectorAll("#picDlg [data-tool]").forEach((b) => {
+  b.onclick = () => {
+    ed.tool = b.dataset.tool;
+    document.querySelectorAll("#picDlg [data-tool]").forEach((x) => x.classList.toggle("on", x === b));
+  };
+});
+$("picUndo").onclick = () => { ed.marks.pop(); redraw(); };
+$("picDim").onchange = redraw;
+$("picCancel").onclick = () => pdlg.close();
+$("picReplace").onclick = () => pickPhoto((dataUrl) => openPicEditor(ed.target, dataUrl, true));
+$("picRemove").onclick = () => {
+  if (!confirm("Remove this picture?")) return;
+  ed.target.set(""); pdlg.close(); save(); render(); prunePics();
+};
+$("picSave").onclick = async () => {
+  if (!ed.isNew && !ed.marks.length) { pdlg.close(); return; }
+  ed.draft = null; redraw();
+  const ref = await storePic(canvas.toDataURL("image/jpeg", 0.85));
+  if (!ref) return;
+  ed.target.set(ref); pdlg.close(); save(); render(); prunePics();
+};
+
 function move(i, d) {
   const j = i + d;
   if (j < 0 || j >= state.rows.length) return;
@@ -428,7 +739,7 @@ const numbered = (t) => lines(t).map((s, i) => `${i + 1}. ${s}`).join("\n");
 const strip = (t) => lines(String(t || "")).map((s) => s.replace(/^(•|-|\*|\d+[.)])\s*/, "")).join("\n");
 
 async function download() {
-  const rows = state.rows.filter((r) => r.some((v) => v.trim()));
+  const rows = state.rows.filter((r) => r.some(filled));
   if (!rows.length) { alert("Add at least one error code first."); return; }
   const NAVY = "FF1F3A4D", GOLD = "FFF6B53B", BAND = "FFF5F7FA", LINE = "FFD0D7DE";
   const FONT = "Aptos Narrow";
@@ -441,9 +752,10 @@ async function download() {
     views: [{ state: "frozen", ySplit: 4, showGridLines: false }],
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: "4:4" },
   });
-  ws.columns = [{ width: 38 }, { width: 48 }, { width: 52 }];
+  ws.columns = [{ width: 34 }, { width: 42 }, { width: 48 }, { width: 58 }];
+  const PIC_W = 395, PIC_H = 330;  // picture size in the PICTURE column, in pixels
 
-  ws.mergeCells("A1:B2");
+  ws.mergeCells("A1:C2");
   const t = ws.getCell("A1");
   t.value = machine ? `${machine} ERROR CODE GUIDE` : "ERROR CODE GUIDE";
   t.font = { name: FONT, size: t.value.length > 28 ? 20 : 24, bold: true, color: { argb: "FFFFFFFF" } };
@@ -454,10 +766,16 @@ async function download() {
   try {
     const buf = await (await fetch("logo.png")).arrayBuffer();
     const id = wb.addImage({ buffer: buf, extension: "png" });
-    ws.addImage(id, { tl: { col: 2.05, row: 0.05 }, ext: { width: 70, height: 80 } });
+    ws.addImage(id, { tl: { col: 3.05, row: 0.05 }, ext: { width: 70, height: 80 } });
   } catch (e) { /* logo is optional */ }
 
-  ["ERROR CODE", "POSSIBLE PROBLEM", "STEPS TO FIX"].forEach((h, i) => {
+  if (state.map && picSrc(state.map)) {
+    const c = ws.getCell("A3");
+    c.value = "See the Machine Map tab for where each screen and part is.";
+    c.font = { name: FONT, size: 11, italic: true, color: { argb: "FF6B7B8C" } };
+  }
+
+  ["ERROR CODE", "POSSIBLE PROBLEM", "STEPS TO FIX", "PICTURE"].forEach((h, i) => {
     const c = ws.getRow(4).getCell(i + 1);
     c.value = h;
     c.font = { name: FONT, size: 14, bold: true, color: { argb: NAVY } };
@@ -467,7 +785,7 @@ async function download() {
   });
   ws.getRow(4).height = 28;
 
-  rows.forEach(([code, prob, fix], i) => {
+  for (const [i, [code, prob, fix, picRef]] of rows.entries()) {
     const r = ws.getRow(5 + i);
     const vals = [code.trim(), bullets(prob), numbered(fix)];
     vals.forEach((v, j) => {
@@ -489,18 +807,45 @@ async function download() {
       const per = Math.max(10, Math.floor(width * 11 / size * 1.05));
       return text ? text.split("\n").reduce((n, t) => n + Math.max(1, Math.ceil(t.length / per)), 0) : 1;
     };
-    r.height = Math.max(44, wrapped(vals[0], 38, 16) * 22,
-                        Math.max(wrapped(vals[1], 48, 13), wrapped(vals[2], 52, 13)) * 17) + 10;
-  });
+    r.height = Math.max(44, wrapped(vals[0], 34, 16) * 22,
+                        Math.max(wrapped(vals[1], 42, 13), wrapped(vals[2], 48, 13)) * 17) + 10;
+    const pc = r.getCell(4);
+    pc.border = grid;
+    if (i % 2) pc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND } };
+    const pic = await excelPicture(wb, picRef);
+    if (pic) {
+      const k = Math.min(PIC_W / pic.w, PIC_H / pic.h);
+      const w = Math.round(pic.w * k), h = Math.round(pic.h * k);
+      ws.addImage(pic.id, { tl: { col: 3.04, row: 4 + i + 0.04 }, ext: { width: w, height: h } });
+      r.height = Math.max(r.height, h * 0.75 + 12);
+    }
+  }
 
   const nr = 5 + rows.length + 1;
-  ws.mergeCells(`A${nr}:C${nr}`);
+  ws.mergeCells(`A${nr}:D${nr}`);
   const note = ws.getCell(`A${nr}`);
   note.value = NOTE;
   note.font = { name: FONT, size: 13, bold: true, color: { argb: "FF9C1C1C" } };
   note.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDEBD8" } };
   note.alignment = { vertical: "middle", wrapText: true, indent: 1 };
   ws.getRow(nr).height = 36;
+
+  const map = await excelPicture(wb, state.map);
+  if (map) {  // the machine picture gets its own tab
+    const ms = wb.addWorksheet("Machine Map", {
+      views: [{ showGridLines: false }],
+      pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+    });
+    ms.getColumn(1).width = 150;
+    const mt = ms.getCell("A1");
+    mt.value = (machine ? machine + " " : "") + "MACHINE MAP";
+    mt.font = { name: FONT, size: 22, bold: true, color: { argb: "FFFFFFFF" } };
+    mt.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+    mt.alignment = { vertical: "middle", indent: 1 };
+    ms.getRow(1).height = 40;
+    const k = Math.min(1050 / map.w, 720 / map.h);
+    ms.addImage(map.id, { tl: { col: 0.02, row: 1.3 }, ext: { width: Math.round(map.w * k), height: Math.round(map.h * k) } });
+  }
 
   const blob = new Blob([await wb.xlsx.writeBuffer()],
     { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -511,22 +856,107 @@ async function download() {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// add a picture to the workbook; returns its id and size, or null
+async function excelPicture(wb, ref) {
+  const src = picSrc(ref);
+  if (!src) return null;
+  try {
+    const im = await loadImage(src);
+    let id;
+    if (src.startsWith("data:")) {
+      id = wb.addImage({ base64: src, extension: /^data:image\/png/.test(src) ? "png" : "jpeg" });
+    } else {
+      id = wb.addImage({ buffer: await (await fetch(src)).arrayBuffer(), extension: /\.png$/i.test(src) ? "png" : "jpeg" });
+    }
+    return { id, w: im.naturalWidth, h: im.naturalHeight };
+  } catch (e) { return null; }
+}
+
+// pictures inside an .xlsx: { sheet name: [{ col, row, dataUrl }] } (col / row are 0-based anchor cells)
+function readPictures(wb) {
+  const files = wb.files || {};
+  const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const raw = (path) => files[path] && files[path].content;
+  const text = (path) => { const c = raw(path); return c == null ? null : typeof c === "string" ? c : new TextDecoder().decode(new Uint8Array(c)); };
+  const xml = (str) => new DOMParser().parseFromString(str, "application/xml");
+  const resolve = (base, target) => {
+    if (target.startsWith("/")) return target.slice(1);
+    const parts = base.split("/"); parts.pop();
+    target.split("/").forEach((t) => { if (t === "..") parts.pop(); else if (t && t !== ".") parts.push(t); });
+    return parts.join("/");
+  };
+  const rels = (path) => {
+    const str = text(path.replace(/([^/]+)$/, "_rels/$1.rels")), out = {};
+    if (str) [...xml(str).getElementsByTagName("Relationship")].forEach((r) => {
+      out[r.getAttribute("Id")] = { target: r.getAttribute("Target"), type: r.getAttribute("Type") || "" };
+    });
+    return out;
+  };
+  const b64 = (bytes) => { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
+  const out = {};
+  const book = text("xl/workbook.xml");
+  if (!book) return out;
+  const bookRels = rels("xl/workbook.xml");
+  [...xml(book).getElementsByTagName("sheet")].forEach((sh) => {
+    const rid = sh.getAttribute("r:id") || sh.getAttributeNS(REL, "id");
+    if (!bookRels[rid]) return;
+    const sheetPath = resolve("xl/workbook.xml", bookRels[rid].target);
+    const pics = [];
+    Object.values(rels(sheetPath)).filter((r) => /\/drawing$/.test(r.type)).forEach((r) => {
+      const dPath = resolve(sheetPath, r.target), dStr = text(dPath);
+      if (!dStr) return;
+      const dRels = rels(dPath);
+      [...xml(dStr).getElementsByTagNameNS("*", "pic")].forEach((pic) => {
+        const from = pic.parentNode.getElementsByTagNameNS("*", "from")[0];
+        const blip = pic.getElementsByTagNameNS("*", "blip")[0];
+        if (!from || !blip) return;
+        const emb = blip.getAttribute("r:embed") || blip.getAttributeNS(REL, "embed");
+        if (!dRels[emb]) return;
+        const mPath = resolve(dPath, dRels[emb].target), bytes = raw(mPath);
+        if (!bytes) return;
+        const ext = mPath.split(".").pop().toLowerCase();
+        pics.push({
+          col: +from.getElementsByTagNameNS("*", "col")[0].textContent,
+          row: +from.getElementsByTagNameNS("*", "row")[0].textContent,
+          dataUrl: `data:image/${ext === "jpg" ? "jpeg" : ext};base64,` + b64(new Uint8Array(bytes)),
+        });
+      });
+    });
+    out[sh.getAttribute("name")] = pics;
+  });
+  return out;
+}
+
 async function openFile(file) {
   try {
-    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-    const grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "", blankrows: true })
+    const wb = XLSX.read(await file.arrayBuffer(), { type: "array", bookFiles: true });
+    const first = wb.Sheets[wb.SheetNames[0]];
+    const top = first["!ref"] ? XLSX.utils.decode_range(first["!ref"]).s.r : 0;
+    const grid = XLSX.utils.sheet_to_json(first, { header: 1, defval: "", blankrows: true })
       .map((r) => r.map((v) => String(v ?? "")));
     const h = grid.findIndex((r) => /^\s*error code\s*$/i.test(r[0] || ""));
     if (h < 0) { alert('Could not find the "ERROR CODE" header in that file.'); return; }
-    const rows = grid.slice(h + 1)
-      .map((r) => [(r[0] || "").trim(), strip(r[1]), strip(r[2])])
-      .filter((r) => r.some(Boolean) && !/^note:/i.test(r[0]));
+    let pictures = {};
+    try { pictures = readPictures(wb); } catch (e) { /* text still opens without pictures */ }
+    const rowPics = {};
+    (pictures[wb.SheetNames[0]] || []).forEach((p) => { if (p.col === 3) rowPics[p.row - top] = p.dataUrl; });
+    const rows = [];
+    for (let n = h + 1; n < grid.length; n++) {
+      const r = grid[n];
+      const row = [(r[0] || "").trim(), strip(r[1]), strip(r[2]), ""];
+      if (!(row.some(Boolean) || rowPics[n]) || /^note:/i.test(row[0])) continue;
+      if (rowPics[n]) row[3] = (await storePic(rowPics[n])) || "";
+      rows.push(row);
+    }
+    const mapPic = (pictures["Machine Map"] || [])[0];
     const cell = (r, c) => ((grid[r] || [])[c] || "").trim();
     const title = cell(0, 0).replace(/ERROR CODE GUIDE/i, "").trim();
-    const g = { machine: title || cell(2, 1), rows: rows.length ? rows : [["", "", ""]], updated: Date.now() };
+    const machineCell = /^see the machine map/i.test(cell(2, 0)) ? "" : cell(2, 1);
+    const g = { machine: title || machineCell, rows: rows.length ? rows : [["", "", "", ""]], updated: Date.now() };
+    if (mapPic) g.map = (await storePic(mapPic.dataUrl)) || "";
     const id = newId();
     if (!hasContent(state)) db.guides[db.current] = { deleted: true, updated: Date.now() };  // replace an empty guide
-    db.guides[id] = g; switchTo(id); save();
+    db.guides[id] = g; switchTo(id); save(); prunePics();
     notice(`Opened <b>${file.name.replace(/[<>&]/g, "")}</b>. Your changes now save automatically.`, 6000);
   } catch (e) {
     alert("Could not read that file. Make sure it is an .xlsx error code guide.");
@@ -535,7 +965,7 @@ async function openFile(file) {
 
 $("machine").addEventListener("input", (e) => { state.machine = e.target.value; save(); });
 $("add").onclick = () => {
-  state.rows.push(["", "", ""]); save(); render();
+  state.rows.push(["", "", "", ""]); save(); render();
   const all = document.querySelectorAll("#rows .row textarea.code");
   all[all.length - 1].focus();
 };
@@ -544,7 +974,7 @@ $("openBtn").onclick = () => $("file").click();
 $("file").onchange = (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ""; };
 $("example").onclick = () => {
   if (hasContent(state) && !confirm("Replace this guide with the UNI-300VA labeler example?")) return;
-  Object.assign(state, JSON.parse(JSON.stringify(EXAMPLE))); save(); render();
+  Object.assign(state, JSON.parse(JSON.stringify(EXAMPLE))); save(); render(); prunePics();
 };
 $("guideSelect").onchange = (e) => switchTo(e.target.value);
 $("newGuide").onclick = () => {
@@ -554,6 +984,7 @@ $("newGuide").onclick = () => {
 $("deleteGuide").onclick = () => {
   if (hasContent(state) && !confirm(`Delete "${state.machine.trim() || "Untitled guide"}"? This cannot be undone.`)) return;
   db.guides[db.current] = { deleted: true, updated: Date.now() };
+  prunePics();
   const ids = liveIds(db);
   if (!ids.length) { const id = newId(); db.guides[id] = blankGuide(); ids.push(id); }
   switchTo(ids[0]); save();
@@ -564,6 +995,7 @@ $("deleteGuide").onclick = () => {
 const cloud = (() => {
   const KEY = "error-guide-cloud-v2";
   const FILE = "error-guide-saves.json";
+  const PIC_PREFIX = "pic-";
   const OWNER = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "jaiserpenales77";
   const ITER = 600000;
   const DELAY = 4000;
@@ -675,10 +1107,9 @@ const cloud = (() => {
         const upload = {};
         Object.keys(db.guides).forEach((id) => { if (!blank(db.guides[id])) upload[id] = db.guides[id]; });
         file.data = await lock(cryptoKey, upload);
-        file.updated = new Date().toISOString();
-        const r = await api(`/gists/${cfg.gist}`, { method: "PATCH", body: JSON.stringify({ files: { [FILE]: { content: JSON.stringify(file) } } }) });
-        if (!r.ok) throw new Error(explain(r));
+        await writeMain(file);
       }
+      await syncPics(file);
       lastSync = Date.now(); lastError = "";
     } catch (e) {
       lastError = e.message === "Failed to fetch" ? "Offline - will upload when the connection is back." : e.message;
@@ -688,6 +1119,57 @@ const cloud = (() => {
       busy = false; show();
       if (again) { again = false; sync(); }
     }
+  }
+
+  async function writeMain(file) {
+    file.updated = new Date().toISOString();
+    const r = await api(`/gists/${cfg.gist}`, { method: "PATCH", body: JSON.stringify({ files: { [FILE]: { content: JSON.stringify(file) } } }) });
+    if (!r.ok) throw new Error(explain(r));
+  }
+
+  // Photos are big, so each one is its own locked file in a second gist. A photo is uploaded once and only
+  // downloaded on a computer that doesn't have it yet.
+  async function syncPics(file) {
+    if (!picsReady) return;
+    const want = [...usedPics()].filter((ref) => ref.startsWith("img:")).map((ref) => ref.slice(4));
+    if (!want.length) return;
+    const sent = new Set(cfg.sent || []);
+    const missing = want.filter((id) => !picStore[id]);
+    if (missing.length && file.pics) {
+      const r = await api(`/gists/${file.pics}`);
+      if (!r.ok) throw new Error(explain(r));
+      let got = 0;
+      for (const id of missing) {
+        const f = r.data.files[PIC_PREFIX + id + ".json"];
+        if (!f) continue;
+        const t = f.truncated ? await (await fetch(f.raw_url, { cache: "no-store" })).text() : f.content;
+        await keepPic(id, await unlock(cryptoKey, JSON.parse(t)));
+        sent.add(id); got++;
+      }
+      if (got) render();
+    }
+    const toSend = want.filter((id) => picStore[id] && !sent.has(id));
+    if (toSend.length) {
+      const files = {};
+      for (const id of toSend) files[PIC_PREFIX + id + ".json"] = { content: JSON.stringify(await lock(cryptoKey, picStore[id])) };
+      if (!file.pics) {  // another computer may have just made the picture gist
+        const fresh = await readGist(cfg.gist);
+        if (fresh.pics) file.pics = fresh.pics;
+      }
+      if (file.pics) {
+        const r = await api(`/gists/${file.pics}`, { method: "PATCH", body: JSON.stringify({ files }) });
+        if (!r.ok) throw new Error(explain(r));
+      } else {
+        const r = await api("/gists", { method: "POST", body: JSON.stringify({
+          description: "Error code guide pictures (locked with app password)", public: true, files }) });
+        if (!r.ok) throw new Error(explain(r));
+        file.pics = r.data.id;
+        await writeMain(file);
+      }
+      toSend.forEach((id) => sent.add(id));
+    }
+    cfg.sent = [...sent];
+    rememberLocally();
   }
 
   function schedule() {
@@ -833,7 +1315,7 @@ render();
 refreshGuideList();
 showSaved();
 cloud.show();
-cloud.restore().then(() => { cloud.show(); cloud.sync(); });
+loadPics().then(render).finally(() => cloud.restore().then(() => { cloud.show(); cloud.sync(); }));
 if (!canSave) {
   notice("⚠ This browser is not letting the app save (private / incognito window?). Use <b>Download Excel</b> before closing so you don't lose your work.");
 } else if (returning) {
