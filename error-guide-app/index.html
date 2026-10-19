@@ -1394,6 +1394,13 @@ function readPictures(wb) {
     return out;
   };
   const b64 = (bytes) => { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
+  const xfrm = (el) => {  // position and size in EMU, plus flips for lines
+    const x = el.getElementsByTagNameNS("*", "xfrm")[0];
+    const off = x && x.getElementsByTagNameNS("*", "off")[0], ext = x && x.getElementsByTagNameNS("*", "ext")[0];
+    if (!off || !ext) return {};
+    return { x: +off.getAttribute("x"), y: +off.getAttribute("y"), cx: +ext.getAttribute("cx"), cy: +ext.getAttribute("cy"),
+             flipH: x.getAttribute("flipH") === "1", flipV: x.getAttribute("flipV") === "1" };
+  };
   const out = {};
   const book = text("xl/workbook.xml");
   if (!book) return out;
@@ -1402,7 +1409,7 @@ function readPictures(wb) {
     const rid = sh.getAttribute("r:id") || sh.getAttributeNS(REL, "id");
     if (!bookRels[rid]) return;
     const sheetPath = resolve("xl/workbook.xml", bookRels[rid].target);
-    const pics = [];
+    const pics = [], shapes = [];
     Object.values(rels(sheetPath)).filter((r) => /\/drawing$/.test(r.type)).forEach((r) => {
       const dPath = resolve(sheetPath, r.target), dStr = text(dPath);
       if (!dStr) return;
@@ -1420,48 +1427,133 @@ function readPictures(wb) {
           col: +from.getElementsByTagNameNS("*", "col")[0].textContent,
           row: +from.getElementsByTagNameNS("*", "row")[0].textContent,
           dataUrl: `data:image/${ext === "jpg" ? "jpeg" : ext};base64,` + b64(new Uint8Array(bytes)),
+          ...xfrm(pic),
         });
       });
+      // shapes drawn on the sheet (circles, boxes, arrows, text callouts), top level only
+      [...xml(dStr).documentElement.children].forEach((anchor) => {
+        const sp = [...anchor.children].find((c) => c.localName === "sp" || c.localName === "cxnSp");
+        if (!sp) return;
+        const geom = sp.getElementsByTagNameNS("*", "prstGeom")[0];
+        const paras = [...sp.getElementsByTagNameNS("*", "p")].map((p) =>
+          [...p.getElementsByTagNameNS("*", "t")].map((t) => t.textContent).join("")).filter((t) => t.trim());
+        shapes.push({ geom: geom ? geom.getAttribute("prst") : "", line: sp.localName === "cxnSp", text: paras.join(" ").trim(), ...xfrm(sp) });
+      });
     });
+    pics.shapes = shapes;
     out[sh.getAttribute("name")] = pics;
   });
   return out;
 }
 
+// column headings the importer understands (this app's guides and other troubleshooting sheets)
+const HEADINGS = {
+  code: /^(error\s*codes?|(hmi\s*)?alarm(\s*(code|message|name))?s?|errors?|faults?(\s*code)?)$/i,
+  mean: /^(what it means|meaning|description)$/i,
+  prob: /^(possible\s+(problems?|causes?)|causes?|problems?|symptoms?)$/i,
+  fix: /^(steps\s+to\s+fix|operator\s+actions?|corrective\s+actions?|actions?|steps|fix|what to do)$/i,
+  pic: /^(pictures?|photos?|images?)$/i,
+};
+function findTable(wb) {
+  const names = [...wb.SheetNames].sort((a, b) => /error|alarm|fault/i.test(b) - /error|alarm|fault/i.test(a));
+  for (const name of names) {
+    const sheet = wb.Sheets[name];
+    if (!sheet || !sheet["!ref"]) continue;
+    const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: true }).map((r) => r.map((v) => String(v ?? "")));
+    for (let r = 0; r < Math.min(grid.length, 40); r++) {
+      const cols = {};
+      grid[r].forEach((v, c) => {
+        const t = v.trim().replace(/\s+/g, " ");
+        Object.keys(HEADINGS).forEach((k) => { if (cols[k] == null && HEADINGS[k].test(t)) cols[k] = c; });
+      });
+      if (cols.code != null && (cols.fix != null || cols.prob != null)) {
+        return { name, grid, h: r, cols, top: XLSX.utils.decode_range(sheet["!ref"]).s.r };
+      }
+    }
+  }
+  return null;
+}
+
+// a "Machine Map" / "Sensor Map" tab: its biggest photo, with any shapes drawn on it turned into editable marks
+async function machinePicture(pictures) {
+  const name = Object.keys(pictures).sort((a, b) => /machine map/i.test(b) - /machine map/i.test(a)).find((n) => /map/i.test(n) && pictures[n].length);
+  if (!name) return null;
+  const area = (p) => (p.cx || 0) * (p.cy || 0);  // biggest picture on the tab (not the logo); file size if sizes are missing
+  const pic = [...pictures[name]].sort((a, b) => area(b) - area(a) || b.dataUrl.length - a.dataUrl.length)[0];
+  const base = await shrinkPicture(pic.dataUrl, 1800);
+  const im = await loadImage(base), W = im.naturalWidth, H = im.naturalHeight;
+  const marks = [];
+  if (pic.cx && pic.cy) {
+    const sx = W / pic.cx, sy = H / pic.cy, lw = lineWidth(W, H);
+    (pictures[name].shapes || []).forEach((sh) => {
+      if (sh.cx == null) return;
+      const x = (sh.x - pic.x) * sx, y = (sh.y - pic.y) * sy, w = sh.cx * sx, h = sh.cy * sy;
+      if (x + w < 0 || y + h < 0 || x > W || y > H) return;  // not on the photo
+      if (sh.text) marks.push({ t: "text", x1: x + w / 2, y1: y + h / 2, s: sh.text, fs: Math.max(14, Math.round(h / 1.7)) });
+      else if (/ellipse|oval|donut/i.test(sh.geom)) marks.push({ t: "circle", x1: x, y1: y, x2: x + w, y2: y + h, lw });
+      else if (sh.line || /line|connector|arrow/i.test(sh.geom)) {
+        marks.push({ t: "arrow", x1: sh.flipH ? x + w : x, y1: sh.flipV ? y + h : y, x2: sh.flipH ? x : x + w, y2: sh.flipV ? y : y + h, lw });
+      } else if (/rect|frame/i.test(sh.geom)) marks.push({ t: "box", x1: x, y1: y, x2: x + w, y2: y + h, lw });
+    });
+  }
+  const baseRef = await storePic(base);
+  if (!baseRef) return null;
+  if (!marks.length) return { ref: baseRef };
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const cx = c.getContext("2d");
+  cx.drawImage(im, 0, 0);
+  drawMarks(cx, W, H, marks, false);
+  const ref = await storePic(c.toDataURL("image/jpeg", 0.85));
+  return ref ? { ref, edit: { base: baseRef, marks, dim: false } } : null;
+}
+async function shrinkPicture(dataUrl, max) {
+  const im = await loadImage(dataUrl);
+  if (Math.max(im.naturalWidth, im.naturalHeight) <= max) return dataUrl;
+  const k = max / Math.max(im.naturalWidth, im.naturalHeight), c = document.createElement("canvas");
+  c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+  c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+
 async function openFile(file) {
   try {
     const wb = XLSX.read(await file.arrayBuffer(), { type: "array", bookFiles: true });
-    const first = wb.Sheets[wb.SheetNames[0]];
-    const top = first["!ref"] ? XLSX.utils.decode_range(first["!ref"]).s.r : 0;
-    const grid = XLSX.utils.sheet_to_json(first, { header: 1, defval: "", blankrows: true })
-      .map((r) => r.map((v) => String(v ?? "")));
-    const h = grid.findIndex((r) => /^\s*error code\s*$/i.test(r[0] || ""));
-    if (h < 0) { alert('Could not find the "ERROR CODE" header in that file.'); return; }
+    const table = findTable(wb);
+    if (!table) {
+      alert('Could not find an error code table in that file. It needs a heading like "ERROR CODE" or "HMI ALARM CODE", ' +
+            'and one like "STEPS TO FIX", "OPERATOR ACTION" or "POSSIBLE CAUSES".');
+      return;
+    }
+    const { grid, h, cols, top } = table;
     let pictures = {};
     try { pictures = readPictures(wb); } catch (e) { /* text still opens without pictures */ }
     const rowPics = {};
-    (pictures[wb.SheetNames[0]] || []).forEach((p) => { if (p.col === 3) rowPics[p.row - top] = p.dataUrl; });
+    if (cols.pic != null) (pictures[table.name] || []).forEach((p) => { if (p.col === cols.pic) rowPics[p.row - top] = p.dataUrl; });
+    const at = (r, c) => (c == null ? "" : String(r[c] || "")).trim();
     const rows = [];
     for (let n = h + 1; n < grid.length; n++) {
-      const r = grid[n];
-      const row = [(r[0] || "").trim(), strip(r[1]), strip(r[2]), ""];
+      const r = grid[n], mean = at(r, cols.mean);
+      const code = at(r, cols.code) + (mean ? `\n(${mean.replace(/\s+/g, " ")})` : "");
+      const row = [code, strip(at(r, cols.prob)), strip(at(r, cols.fix)), ""];
       if (!(row.some(Boolean) || rowPics[n]) || /^\W*note:/i.test(row[0])) continue;
       if (rowPics[n]) row[3] = (await storePic(rowPics[n])) || "";
       rows.push(row);
     }
-    const mapPic = (pictures["Machine Map"] || [])[0];
     const cell = (r, c) => ((grid[r] || [])[c] || "").trim();
-    const banner = [0, 1, 2].map((r) => cell(r, 0)).find((t) => /guide|error code/i.test(t)) || "";
+    const banner = [0, 1, 2, 3].map((r) => cell(r, 0)).find((t) => /guide|error code/i.test(t)) || "";
     const title = banner.split("\n").map((t) => t.trim())
       .filter((t) => t && !/^operator'?s troubleshooting guide$/i.test(t)).join(" ")
       .replace(/(operator'?s\s+)?(troubleshooting|error code)\s+guide/i, "").trim();
     const machineCell = /^machine:?$/i.test(cell(2, 0)) ? cell(2, 1) : "";  // older blank template
     const g = { machine: title || machineCell, rows: rows.length ? rows : [["", "", "", ""]], updated: Date.now() };
-    if (mapPic) g.map = (await storePic(mapPic.dataUrl)) || "";
+    const map = await machinePicture(pictures).catch(() => null);
+    if (map) { g.map = map.ref; if (map.edit) g.mapEdit = map.edit; }
     const id = newId();
     if (!hasContent(state)) db.guides[db.current] = { deleted: true, updated: Date.now() };  // replace an empty guide
     db.guides[id] = g; switchTo(id); save(); prunePics();
-    notice(`Opened <b>${file.name.replace(/[<>&]/g, "")}</b>. Your changes now save automatically.`, 6000);
+    notice(`Opened <b>${file.name.replace(/[<>&]/g, "")}</b>${table.name !== wb.SheetNames[0] ? ` (from the "${table.name.replace(/[<>&]/g, "")}" tab)` : ""}. ` +
+           "Your changes now save automatically.", 7000);
   } catch (e) {
     alert("Could not read that file. Make sure it is an .xlsx error code guide.");
   }

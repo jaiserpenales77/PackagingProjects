@@ -4,7 +4,10 @@ A web app for packaging projects. Its **Troubleshoot Guides** tab fills out an e
 and downloads it as a formatted Excel file.
 
 - **Download Excel** – saves the guide in the same layout as `Error Code Guide - Blank.xlsx`.
-- **Open Excel** – loads a guide you made earlier (or the blank template) so you can edit it.
+- **Open Excel** – loads a guide you made earlier (or the blank template) so you can edit it. It also reads other
+  troubleshooting sheets: it finds the tab with headings like *HMI ALARM CODE / WHAT IT MEANS / POSSIBLE CAUSES /
+  OPERATOR ACTION*, and uses a "Machine Map" or "Sensor Map" photo as the machine picture, turning shapes drawn on it
+  (circles, boxes, arrows, text callouts) into editable marks.
 - **Saving progress** – everything you type saves automatically in your browser, so you can close the
   app and continue another day. A green "Saved" badge shows the last save time.
   Click **💾 Save** (or press Ctrl+S / ⌘S) to save right away; with cloud save on it uploads immediately
