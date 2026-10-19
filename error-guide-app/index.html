@@ -33,6 +33,8 @@
   .table-head div { padding: 10px 12px; }
   .row { display: grid; grid-template-columns: 1fr 1.3fr 1.4fr 70px; background: var(--card); border: 1px solid var(--line); border-top: 0; }
   .row:nth-child(even) { background: var(--band); }
+  .row > div:not(.actions) { display: flex; flex-direction: column; }   /* column dividers run the full row height */
+  .row > div > textarea, .row > div > .steps { flex: 1; }
   .row textarea { width: 100%; min-height: 110px; border: 0; border-right: 1px solid var(--line); background: transparent; padding: 10px 12px; font: inherit; font-size: 15px; resize: vertical; }
   .row textarea.code { font-weight: 700; font-size: 17px; color: var(--navy); }
   .row textarea:focus { outline: 2px solid var(--gold); outline-offset: -2px; background: #FFFBEF; }
@@ -40,6 +42,7 @@
   .step { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
   .step .num { flex: 0 0 24px; height: 24px; margin-top: 1px; border-radius: 50%; background: var(--navy); color: #fff;
                font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .bullets .step .num { flex: 0 0 8px; height: 8px; margin: 10px 8px 0 8px; background: var(--gold); }
   .row .steps textarea { min-height: 0; height: 26px; border: 0; padding: 3px 4px; resize: none; overflow: hidden; border-radius: 4px; }
   .add-step { background: transparent; color: var(--muted); font-size: 13px; padding: 4px 6px; margin-left: 28px; }
   .add-step:hover { color: var(--navy); }
@@ -52,7 +55,7 @@
   .guides { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;
             display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .guides label { font-weight: 700; color: var(--navy); }
-  .guides select { flex: 1 1 260px; font: inherit; font-size: 15px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .guides select { flex: 1 1 260px; min-width: 0; max-width: 100%; font: inherit; font-size: 15px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
   .saved { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 99px;
            background: #D9F2E1; color: #1E6B3A; }
   .saved.err { background: #FAD4D4; color: var(--danger); }
@@ -296,8 +299,8 @@ function render() {
     fields.forEach(([label, cls, ph], j) => {
       const wrap = document.createElement("div");
       wrap.innerHTML = `<span class="field-label">${label.toUpperCase()}</span>`;
-      if (j === 2) {
-        wrap.appendChild(stepsEditor(i));
+      if (j > 0) {
+        wrap.appendChild(listEditor(i, j));
         el.appendChild(wrap);
         return;
       }
@@ -329,27 +332,32 @@ function render() {
 const autosize = (ta) => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
 const cleanStep = (t) => t.replace(/\s*\n\s*/g, " ").replace(/^\s*(\d+[.)]|•|-|\*)\s+/, "");
 
-// "Steps to fix" as a numbered list: one box per step, Enter starts the next step,
-// Backspace at the start of a step joins it to the one above. Stored as one line per step.
-function stepsEditor(i) {
+// "Possible problem" (bullets) and "Steps to fix" (numbers) as lists: one box per item, Enter starts
+// the next item, Backspace at the start of an item joins it to the one above. Stored one line per item.
+const LISTS = {
+  1: { bullet: true, word: "problem", first: "Type a problem, then press Enter for the next" },
+  2: { bullet: false, word: "step", first: "Type step 1, then press Enter for the next" },
+};
+function listEditor(i, j) {
+  const opt = LISTS[j];
   const box = document.createElement("div");
-  box.className = "steps";
-  const commit = (items) => { state.rows[i][2] = items.join("\n"); save(); };
+  box.className = "steps" + (opt.bullet ? " bullets" : "");
+  const commit = (items) => { state.rows[i][j] = items.join("\n"); save(); };
 
   function draw(focusAt, caret) {
-    const items = state.rows[i][2] ? state.rows[i][2].split("\n") : [""];
+    const items = state.rows[i][j] ? state.rows[i][j].split("\n") : [""];
     box.innerHTML = "";
     items.forEach((text, k) => {
       const line = document.createElement("div");
       line.className = "step";
       const num = document.createElement("span");
       num.className = "num";
-      num.textContent = k + 1;
+      num.textContent = opt.bullet ? "" : k + 1;
       const ta = document.createElement("textarea");
       ta.rows = 1;
       ta.value = text;
-      ta.setAttribute("aria-label", "Step " + (k + 1));
-      if (k === 0) ta.placeholder = "Type step 1, then press Enter for the next";
+      ta.setAttribute("aria-label", (opt.bullet ? "Problem " : "Step ") + (k + 1));
+      if (k === 0) ta.placeholder = opt.first;
       ta.addEventListener("input", () => {
         if (ta.value.includes("\n")) ta.value = ta.value.replace(/\n/g, " ");
         items[k] = ta.value; commit(items); autosize(ta);
@@ -391,7 +399,7 @@ function stepsEditor(i) {
     const add = document.createElement("button");
     add.className = "add-step";
     add.type = "button";
-    add.textContent = "+ Add step";
+    add.textContent = "+ Add " + opt.word;
     add.onclick = () => { items.push(""); commit(items); draw(items.length - 1, 0); };
     box.appendChild(add);
 
@@ -466,8 +474,8 @@ async function download() {
       const c = r.getCell(j + 1);
       c.value = v || null;
       const where = j === 0 && v.match(/^([\s\S]*?)\n(\([^)]*\))$/);  // "Name\n(Optel screen)" -> small grey second line
-      if (j === 2 && v) c.value = { richText: lines(fix).flatMap((t, k) => [
-        { text: (k ? "\n" : "") + (k + 1) + ". ", font: { name: FONT, size: 13, bold: true, color: { argb: NAVY } } },
+      if (j > 0 && v) c.value = { richText: lines(j === 1 ? prob : fix).flatMap((t, k) => [
+        { text: (k ? "\n" : "") + (j === 1 ? "• " : (k + 1) + ". "), font: { name: FONT, size: 13, bold: true, color: { argb: NAVY } } },
         { text: t, font: { name: FONT, size: 13, color: { argb: "FF222222" } } }]) };
       if (where) c.value = { richText: [
         { text: where[1], font: { name: FONT, size: 16, bold: true, color: { argb: NAVY } } },
