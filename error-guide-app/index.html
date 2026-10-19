@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Error Code Guide Builder</title>
+<title>Project Hub</title>
 <link rel="icon" href="logo.png">
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -17,7 +17,13 @@
   header { background: var(--navy); color: #fff; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
   header img { height: 44px; background: #fff; border-radius: 6px; padding: 3px; }
   header h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
-  .bar { background: var(--gold); padding: 6px 16px; font-weight: 700; color: var(--navy); font-size: 14px; }
+  .tabs { background: var(--navy); padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; border-bottom: 4px solid var(--gold); }
+  .tabs button { background: transparent; color: #C9D6E2; border-radius: 8px 8px 0 0; padding: 10px 18px; font-size: 15px;
+                 white-space: nowrap; border-bottom: 0; }
+  .tabs button:hover { color: #fff; background: rgba(255,255,255,.08); }
+  .tabs button[aria-selected="true"] { background: var(--gold); color: var(--navy); }
+  .tab-intro { color: var(--muted); font-size: 14px; margin: 0 2px 14px; }
+  .tab-intro b { color: var(--navy); font-size: 18px; margin-right: 8px; }
   main { max-width: 1260px; margin: 0 auto; padding: 16px; }
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
   .machine { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; }
@@ -112,11 +118,14 @@
 <body>
 <header>
   <img src="logo.png" alt="">
-  <h1>ERROR CODE GUIDE BUILDER</h1>
+  <h1>Project Hub</h1>
 </header>
-<div class="bar">Fill in each error code, then download the Excel guide.</div>
+<nav class="tabs" role="tablist" aria-label="Project Hub sections">
+  <button role="tab" id="tab-troubleshoot" aria-controls="panel-troubleshoot" aria-selected="true" data-tab="troubleshoot">Troubleshoot Guides</button>
+</nav>
 
-<main>
+<main id="panel-troubleshoot" role="tabpanel" aria-labelledby="tab-troubleshoot" data-panel="troubleshoot">
+  <p class="tab-intro"><b>Troubleshoot Guides</b>Fill in each error code, then download the Excel guide.</p>
   <div class="notice" id="notice" hidden></div>
   <div class="guides">
     <label for="guideSelect">MY GUIDES:</label>
@@ -1308,6 +1317,18 @@ window.addEventListener("beforeunload", (e) => {
 });
 
 window.addEventListener("resize", () => document.querySelectorAll(".steps textarea").forEach(autosize));
+// tabs: each button's data-tab matches a panel's data-panel
+function showTab(name) {
+  const tabs = [...document.querySelectorAll(".tabs [data-tab]")];
+  if (!tabs.some((t) => t.dataset.tab === name)) name = tabs[0].dataset.tab;
+  tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
+  document.querySelectorAll("[data-panel]").forEach((p) => { p.hidden = p.dataset.panel !== name; });
+  try { localStorage.setItem("project-hub-tab", name); } catch (e) {}
+}
+document.querySelectorAll(".tabs [data-tab]").forEach((t) => { t.onclick = () => { showTab(t.dataset.tab); history.replaceState(null, "", "#" + t.dataset.tab); }; });
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+showTab(location.hash.slice(1) || (() => { try { return localStorage.getItem("project-hub-tab"); } catch (e) { return ""; } })());
+
 // ask the browser not to clear our saved guides when it is low on space
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 

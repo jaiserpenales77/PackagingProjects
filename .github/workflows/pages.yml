@@ -1,4 +1,4 @@
-name: Deploy error guide app
+name: Deploy Project Hub
 
 on:
   push:
