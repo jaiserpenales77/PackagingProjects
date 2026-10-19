@@ -8,14 +8,15 @@ and downloading it as a formatted Excel file.
 - **Saving progress** – everything you type saves automatically in your browser, so you can close the
   app and continue another day. A green "Saved" badge shows the last save time.
 - **My guides** – keep several guides in progress (e.g. one per machine) and switch between them.
-- **Cloud save (other computers)** – click **☁ Cloud save** to keep guides in a *private* GitHub repo
-  (`guide-saves`) and open them on any computer. Setup, once per computer:
-  1. First time only: create a private repo named `guide-saves`.
-  2. Create a fine-grained token at GitHub → Settings → Developer settings → Fine-grained tokens:
-     *Only select repositories → guide-saves*, *Contents: Read and write*.
-  3. Paste the token in the app and click **Connect**.
-  Changes upload a few seconds after you stop typing. If the same guide is edited on two computers,
-  the most recent edit wins.
+- **Cloud save with a password (other computers)** – click **☁ Cloud save**.
+  - *First computer, once:* click the link to create a GitHub key (only the "gist" box is ticked),
+    paste it, and choose an app password.
+  - *Every other computer:* click **☁ Cloud save** and type the password.
+  Guides and the key are encrypted with the password in the browser (AES-256-GCM, PBKDF2 600k) and
+  stored in one gist (`error-guide-saves.json`) on your GitHub account; without the password the
+  gist is unreadable. Changes upload a few seconds after you stop typing; if the same guide is edited
+  on two computers, the most recent edit wins. When the key expires, sign out and set up again with a
+  new key and the same password.
 - Without cloud save, you can still move work with **Download Excel** and **Open Excel**.
   Private/incognito windows don't keep saved work.
 

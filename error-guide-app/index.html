@@ -110,41 +110,55 @@
   <button class="add" id="add">+ Add error code</button>
   <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.</p>
   <p class="hint"><b>Your work saves automatically</b> in this browser as you type, so you can close the app and pick up where you left off.
-    To open your guides on another computer, turn on <b>☁ Cloud save</b> on each computer. You can also click <b>Download Excel</b>
+    To open your guides on another computer, turn on <b>☁ Cloud save</b> once, then on the other computer click it and type your password. You can also click <b>Download Excel</b>
     and use <b>Open Excel</b> on the other computer.</p>
 </main>
 
 <dialog id="cloudDlg">
   <h2>☁ Cloud save</h2>
-  <div class="dlg" id="setupView">
-    Cloud save keeps your guides in a <b>private</b> GitHub repository, so you can open them on any computer.
-    <ol>
-      <li><b>First time only:</b> <a id="newRepoLink" target="_blank" rel="noopener">create a private repository named <code>guide-saves</code></a>
-        (leave everything else as is, then click <i>Create repository</i>).</li>
-      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create an access key (token)</a>:
-        <span class="small">give it a name such as "Guide app – work PC", set <i>Expiration</i>, choose
-        <i>Repository access → Only select repositories → guide-saves</i>, then under <i>Repository permissions</i> set
-        <i>Contents</i> to <b>Read and write</b>. Click <i>Generate token</i> and copy it.</span></li>
-      <li>Paste the token here:
-        <input id="tokenIn" type="password" placeholder="github_pat_..." autocomplete="off">
-        <label class="small">Repository name <input id="repoIn" value="guide-saves"></label></li>
-    </ol>
-    <span class="small">Do this on each computer you use. The token is kept only in this browser; click Disconnect on shared computers when you're done.</span>
-    <div class="msg" id="cloudMsg"></div>
+  <div class="dlg" id="checkingView">Checking for saved guides…</div>
+
+  <div class="dlg" id="unlockView" hidden>
+    <p>Type your app password to open your saved guides on this computer.</p>
+    <label class="small">Password <input id="pwUnlock" type="password" autocomplete="current-password"></label>
+    <div class="msg" id="unlockMsg"></div>
     <div class="row2">
-      <button class="ghost" id="cloudCancel">Cancel</button>
-      <button class="primary" id="cloudConnect">Connect</button>
+      <button class="ghost" id="toSetup">Forgot password / set up again</button>
+      <button class="ghost" data-close>Cancel</button>
+      <button class="primary" id="unlockBtn">Open my guides</button>
     </div>
   </div>
+
+  <div class="dlg" id="setupView" hidden>
+    <p>One-time setup, on this computer only. Every other computer will just need the password.</p>
+    <ol>
+      <li><a id="tokenLink" target="_blank" rel="noopener">Click here to create a GitHub key</a>.
+        <span class="small">GitHub opens with everything filled in. Pick an <i>Expiration</i> (e.g. 1 year),
+        scroll down, click <b>Generate token</b>, and copy the key it shows you.</span></li>
+      <li>Paste the key here:
+        <input id="tokenIn" type="password" placeholder="ghp_..." autocomplete="off"></li>
+      <li>Choose an app password (at least 8 characters):
+        <input id="pwNew" type="password" autocomplete="new-password" placeholder="Password">
+        <input id="pwNew2" type="password" autocomplete="new-password" placeholder="Type it again"></li>
+    </ol>
+    <p class="small">Your guides and the key are locked with this password before they leave this computer.
+      Nobody can open them without it, and it can't be recovered, so write it down somewhere safe.</p>
+    <div class="msg" id="cloudMsg"></div>
+    <div class="row2">
+      <button class="ghost" data-close>Cancel</button>
+      <button class="primary" id="cloudConnect">Turn on cloud save</button>
+    </div>
+  </div>
+
   <div class="dlg" id="connectedView" hidden>
-    <p>Connected to <b id="cloudWhere"></b>. Your guides upload automatically a few seconds after you stop typing,
-      and any computer connected to the same repository sees them.</p>
+    <p><b>Cloud save is on.</b> Your guides upload automatically a few seconds after you stop typing.
+      To open them on another computer, go to this app there, click <b>☁ Cloud save</b> and type your password.</p>
     <p class="small" id="cloudLast"></p>
     <div class="msg" id="cloudMsg2"></div>
     <div class="row2">
-      <button class="ghost del" id="cloudDisconnect">Disconnect this computer</button>
+      <button class="ghost del" id="cloudDisconnect">Sign out on this computer</button>
       <button class="secondary" id="cloudSyncNow">Sync now</button>
-      <button class="primary" id="cloudClose">Done</button>
+      <button class="primary" data-close>Done</button>
     </div>
   </div>
 </dialog>
@@ -417,40 +431,77 @@ $("deleteGuide").onclick = () => {
   if (!ids.length) { const id = newId(); db.guides[id] = blankGuide(); ids.push(id); }
   switchTo(ids[0]); save();
 };
-// ---------------------------------------------------------------- cloud save (private GitHub repo)
+// ---------------------------------------------------------------- cloud save (password-locked)
+// Guides and the GitHub key are encrypted with the app password (AES-GCM, PBKDF2) and kept in one
+// gist on the owner's GitHub account, so another computer only needs the password to open them.
 const cloud = (() => {
-  const KEY = "error-guide-cloud";
-  const FILE = "guides.json";
+  const KEY = "error-guide-cloud-v2";
+  const FILE = "error-guide-saves.json";
+  const OWNER = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "jaiserpenales77";
+  const ITER = 600000;
   const DELAY = 4000;
-  let cfg = null, timer = null, busy = false, again = false, pending = false, lastSync = 0, lastError = "";
-  try { cfg = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  let cfg = null, cryptoKey = null, timer = null, busy = false, again = false, pending = false, lastSync = 0, lastError = "";
 
-  const b64encode = (str) => { const b = new TextEncoder().encode(str); let s = ""; b.forEach((c) => { s += String.fromCharCode(c); }); return btoa(s); };
-  const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), (c) => c.charCodeAt(0)));
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const toB64 = (bytes) => { let s = ""; bytes.forEach((c) => { s += String.fromCharCode(c); }); return btoa(s); };
+  const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+  async function deriveKey(password, saltB64) {
+    const base = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt: fromB64(saltB64), iterations: ITER, hash: "SHA-256" },
+      base, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  }
+  async function lock(key, value) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(JSON.stringify(value)));
+    return { iv: toB64(iv), ct: toB64(new Uint8Array(ct)) };
+  }
+  async function unlock(key, box) {
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(box.iv) }, key, fromB64(box.ct));
+    return JSON.parse(dec.decode(pt));
+  }
+  async function importKey(rawB64) {
+    return crypto.subtle.importKey("raw", fromB64(rawB64), "AES-GCM", true, ["encrypt", "decrypt"]);
+  }
 
   async function api(path, opts = {}, token = cfg && cfg.token) {
-    const res = await fetch("https://api.github.com" + path, {
-      ...opts, cache: "no-store",
-      headers: { Accept: "application/vnd.github+json", Authorization: "Bearer " + token, "X-GitHub-Api-Version": "2022-11-28",
-                 ...(opts.body ? { "Content-Type": "application/json" } : {}) },
-    });
+    const headers = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+    if (token) headers.Authorization = "Bearer " + token;
+    if (opts.body) headers["Content-Type"] = "application/json";
+    const res = await fetch("https://api.github.com" + path, { ...opts, cache: "no-store", headers });
     let data = null;
     try { data = await res.json(); } catch (e) {}
     return { ok: res.ok, status: res.status, data };
   }
-
-  async function pull() {
-    const r = await api(`/repos/${cfg.owner}/${cfg.repo}/contents/${FILE}`);
-    if (r.status === 404) return { sha: null, guides: {} };  // nothing saved yet (or empty repository)
-    if (!r.ok) throw new Error(explain(r));
-    return { sha: r.data.sha, guides: (JSON.parse(b64decode(r.data.content)).guides) || {} };
+  function explain(r) {
+    if (r.status === 401) return "The GitHub key has expired or was deleted. Click Sign out, then set up again with a new key (you can keep the same password).";
+    if (r.status === 403 || r.status === 429) return "GitHub is busy or the key isn't allowed to save. Try again in a minute.";
+    return "GitHub error " + r.status + (r.data && r.data.message ? ": " + r.data.message : "");
   }
 
-  function explain(r) {
-    if (r.status === 401) return "The token is not valid or has expired. Disconnect and connect again with a new token.";
-    if (r.status === 403) return "The token is not allowed to change this repository. Make sure Contents is set to Read and write.";
-    if (r.status === 404) return "Repository not found. Check the name and that the token was given access to it.";
-    return "GitHub error " + r.status + (r.data && r.data.message ? ": " + r.data.message : "");
+  // the saved file lives in a gist named FILE; find the newest one on this account
+  async function findGist(owner, token) {
+    const r = await api(`/users/${owner}/gists?per_page=100`, {}, token);
+    if (!r.ok) throw new Error(explain(r));
+    const hits = (r.data || []).filter((g) => g.files && g.files[FILE]).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    return hits[0] ? hits[0].id : null;
+  }
+  async function readGist(id, token) {
+    const r = await api(`/gists/${id}`, {}, token);
+    if (!r.ok) throw new Error(explain(r));
+    const f = r.data.files[FILE];
+    let text = f.content;
+    if (f.truncated) text = await (await fetch(f.raw_url, { cache: "no-store" })).text();
+    return JSON.parse(text);
+  }
+
+  function rememberLocally() {
+    try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {}
+  }
+
+  async function restore() {
+    try { cfg = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+    if (cfg) { try { cryptoKey = await importKey(cfg.key); } catch (e) { cfg = null; } }
   }
 
   // newest version of each guide wins; untouched blank guides stay on this computer only
@@ -474,33 +525,32 @@ const cloud = (() => {
     return { out, changedLocal, changedRemote };
   }
 
+  function applyMerged(out, curBefore) {
+    db.guides = out;
+    if (!db.guides[db.current] || db.guides[db.current].deleted) db.current = liveIds(db)[0] || null;
+    if (!db.current) { db.current = newId(); db.guides[db.current] = blankGuide(); }
+    state = db.guides[db.current];
+    persistLocal(); refreshGuideList(); showSaved();
+    if (JSON.stringify(state) !== curBefore) render();
+  }
+
   async function sync() {
     if (!cfg) return;
     if (busy) { again = true; return; }
     busy = true; pending = false; clearTimeout(timer); show("Syncing…");
     try {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const remote = await pull();
-        const curBefore = JSON.stringify(db.guides[db.current]);
-        const { out, changedLocal, changedRemote } = merge(remote.guides);
-        db.guides = out;
-        if (changedLocal) {
-          if (!db.guides[db.current] || db.guides[db.current].deleted) db.current = liveIds(db)[0] || db.current;
-          if (!db.guides[db.current] || db.guides[db.current].deleted) { db.current = newId(); db.guides[db.current] = blankGuide(); }
-          const curChanged = JSON.stringify(db.guides[db.current]) !== curBefore;
-          state = db.guides[db.current];
-          persistLocal(); refreshGuideList(); showSaved();
-          if (curChanged) render();
-        }
-        if (!changedRemote) break;
+      const file = await readGist(cfg.gist);
+      const remote = file.data ? await unlock(cryptoKey, file.data) : {};
+      const { out, changedLocal, changedRemote } = merge(remote);
+      if (changedLocal) applyMerged(out, JSON.stringify(state));
+      else db.guides = out;
+      if (changedRemote) {
         const upload = {};
         Object.keys(db.guides).forEach((id) => { if (!blank(db.guides[id])) upload[id] = db.guides[id]; });
-        const body = { message: "Save guides " + new Date().toISOString(),
-                       content: b64encode(JSON.stringify({ version: 2, guides: upload }, null, 1)) };
-        if (remote.sha) body.sha = remote.sha;
-        const r = await api(`/repos/${cfg.owner}/${cfg.repo}/contents/${FILE}`, { method: "PUT", body: JSON.stringify(body) });
-        if (r.ok) break;
-        if (r.status !== 409 && r.status !== 422) throw new Error(explain(r));  // 409/422: someone saved first - merge again
+        file.data = await lock(cryptoKey, upload);
+        file.updated = new Date().toISOString();
+        const r = await api(`/gists/${cfg.gist}`, { method: "PATCH", body: JSON.stringify({ files: { [FILE]: { content: JSON.stringify(file) } } }) });
+        if (!r.ok) throw new Error(explain(r));
       }
       lastSync = Date.now(); lastError = "";
     } catch (e) {
@@ -532,67 +582,120 @@ const cloud = (() => {
     $("cloudMsg2").textContent = lastError;
   }
 
-  async function connect(token, repo) {
-    const me = await api("/user", {}, token);
-    if (!me.ok) throw new Error(me.status === 401 ? "That token was not accepted. Copy it again and paste the whole thing." : explain(me));
-    const r = await api(`/repos/${me.data.login}/${repo}`, {}, token);
-    if (r.status === 404) throw new Error(`Couldn't find "${me.data.login}/${repo}". Create it (step 1) and give the token access to it.`);
-    if (!r.ok) throw new Error(explain(r));
-    if (!r.data.private && !confirm(`"${repo}" is PUBLIC, so anyone could see your guides. Use it anyway?`)) throw new Error("Make the repository private, then connect again.");
-    cfg = { token, owner: me.data.login, repo };
-    try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {}
+  async function finishSignIn(c, key) {
+    cfg = c; cryptoKey = key;
+    rememberLocally();
     await sync();
     if (lastError) throw new Error(lastError);
   }
 
-  function disconnect() {
-    cfg = null; lastSync = 0; lastError = ""; pending = false; clearTimeout(timer);
+  // another computer: password only
+  async function signIn(password) {
+    const gist = await findGist(OWNER);
+    if (!gist) throw new Error("No cloud save found yet. Set it up first on the computer you started on.");
+    const file = await readGist(gist);
+    const key = await deriveKey(password, file.salt);
+    let token;
+    try { token = await unlock(key, file.token); } catch (e) { throw new Error("Wrong password. Try again."); }
+    await finishSignIn({ gist, token, key: toB64(new Uint8Array(await crypto.subtle.exportKey("raw", key))) }, key);
+  }
+
+  // first computer (or a new key / forgotten password): key + password
+  async function setup(token, password) {
+    const me = await api("/user", {}, token);
+    if (!me.ok) throw new Error(me.status === 401 ? "That key was not accepted. Copy it again and paste the whole thing." : explain(me));
+    const existing = await findGist(me.data.login, token);
+    let file = null, key = null;
+    if (existing) {
+      file = await readGist(existing, token);
+      const k = await deriveKey(password, file.salt);
+      try { await unlock(k, file.token); key = k; } catch (e) {
+        if (!confirm("There are guides saved with a different password. Replace them with the guides on this computer?")) {
+          throw new Error("Type your original password to keep those guides.");
+        }
+        file = null;
+      }
+    }
+    if (!file) file = { app: "error-code-guide", v: 1, salt: toB64(crypto.getRandomValues(new Uint8Array(16))) };
+    if (!key) { key = await deriveKey(password, file.salt); delete file.data; }
+    file.token = await lock(key, token);
+    const body = JSON.stringify({ files: { [FILE]: { content: JSON.stringify(file) } } });
+    let gist = existing;
+    const r = existing
+      ? await api(`/gists/${existing}`, { method: "PATCH", body }, token)
+      : await api("/gists", { method: "POST", body: JSON.stringify({ description: "Error code guide saves (locked with app password)", public: true,
+                                                                     files: { [FILE]: { content: JSON.stringify(file) } } }) }, token);
+    if (!r.ok) throw new Error(r.status === 403 || r.status === 404 ? "That key can't save. Create it with the link above (it needs the \"gist\" box ticked)." : explain(r));
+    if (!existing) gist = r.data.id;
+    await finishSignIn({ gist, token, key: toB64(new Uint8Array(await crypto.subtle.exportKey("raw", key))) }, key);
+  }
+
+  function signOut() {
+    cfg = null; cryptoKey = null; lastSync = 0; lastError = ""; pending = false; clearTimeout(timer);
     try { localStorage.removeItem(KEY); } catch (e) {}
     show();
   }
 
-  return { sync, schedule, show, connect, disconnect, get cfg() { return cfg; }, get pending() { return pending; } };
+  return { restore, sync, schedule, show, signIn, setup, signOut, findGist: () => findGist(OWNER),
+           get on() { return !!cfg; }, get pending() { return pending; } };
 })();
 
 const dlg = $("cloudDlg");
-function openCloud() {
-  $("setupView").hidden = !!cloud.cfg;
-  $("connectedView").hidden = !cloud.cfg;
-  if (cloud.cfg) $("cloudWhere").textContent = cloud.cfg.owner + "/" + cloud.cfg.repo;
-  $("cloudMsg").textContent = "";
-  $("newRepoLink").href = "https://github.com/new?name=" + encodeURIComponent($("repoIn").value.trim() || "guide-saves") +
-    "&visibility=private&description=" + encodeURIComponent("Saved error code guides");
+const views = ["checkingView", "unlockView", "setupView", "connectedView"];
+const showView = (v) => views.forEach((x) => { $(x).hidden = x !== v; });
+$("tokenLink").href = "https://github.com/settings/tokens/new?scopes=gist&description=" + encodeURIComponent("Error code guide app");
+async function openCloud() {
+  ["cloudMsg", "unlockMsg"].forEach((m) => { $(m).textContent = ""; });
   cloud.show();
   dlg.showModal();
+  if (cloud.on) return showView("connectedView");
+  showView("checkingView");
+  try { showView((await cloud.findGist()) ? "unlockView" : "setupView"); }
+  catch (e) { showView("setupView"); }
+  (dlg.querySelector(":not([hidden]) > label input, :not([hidden]) li input") || {}).focus?.();
+}
+async function busyButton(btn, label, fn) {
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = label;
+  try { await fn(); } finally { btn.disabled = false; btn.textContent = old; }
 }
 $("cloudBtn").onclick = openCloud;
-$("repoIn").oninput = () => { $("newRepoLink").href = "https://github.com/new?name=" + encodeURIComponent($("repoIn").value.trim()) + "&visibility=private"; };
-$("cloudCancel").onclick = $("cloudClose").onclick = () => dlg.close();
-$("cloudConnect").onclick = async () => {
-  const token = $("tokenIn").value.trim(), repo = $("repoIn").value.trim();
-  if (!token || !repo) { $("cloudMsg").textContent = "Paste your token first."; return; }
-  $("cloudConnect").disabled = true; $("cloudMsg").textContent = "";
-  $("cloudConnect").textContent = "Connecting…";
+dlg.querySelectorAll("[data-close]").forEach((b) => { b.onclick = () => dlg.close(); });
+$("toSetup").onclick = () => showView("setupView");
+$("unlockBtn").onclick = () => busyButton($("unlockBtn"), "Opening…", async () => {
+  const pw = $("pwUnlock").value;
+  if (!pw) { $("unlockMsg").textContent = "Type your password."; return; }
   try {
-    await cloud.connect(token, repo);
-    $("tokenIn").value = "";
+    await cloud.signIn(pw);
+    $("pwUnlock").value = "";
     dlg.close();
-    notice(`☁ Cloud save is on. Your guides are saved to <b>${cloud.cfg.owner}/${cloud.cfg.repo}</b> and will show up on any computer you connect.`, 8000);
-  } catch (e) {
-    $("cloudMsg").textContent = e.message;
-  } finally {
-    $("cloudConnect").disabled = false; $("cloudConnect").textContent = "Connect";
-  }
-};
+    notice("☁ Your saved guides are open on this computer. Changes save to the cloud automatically.", 8000);
+  } catch (e) { $("unlockMsg").textContent = e.message; }
+});
+$("pwUnlock").addEventListener("keydown", (e) => { if (e.key === "Enter") $("unlockBtn").click(); });
+$("cloudConnect").onclick = () => busyButton($("cloudConnect"), "Turning on…", async () => {
+  const token = $("tokenIn").value.trim(), pw = $("pwNew").value, pw2 = $("pwNew2").value;
+  const msg = $("cloudMsg");
+  if (!token) { msg.textContent = "Paste the GitHub key first (step 1 and 2)."; return; }
+  if (pw.length < 8) { msg.textContent = "The password needs at least 8 characters."; return; }
+  if (pw !== pw2) { msg.textContent = "The two passwords don't match."; return; }
+  msg.textContent = "";
+  try {
+    await cloud.setup(token, pw);
+    ["tokenIn", "pwNew", "pwNew2"].forEach((i) => { $(i).value = ""; });
+    dlg.close();
+    notice("☁ Cloud save is on. On another computer, open this app, click <b>☁ Cloud save</b> and type your password.", 10000);
+  } catch (e) { msg.textContent = e.message; }
+});
 $("cloudSyncNow").onclick = () => cloud.sync();
 $("cloudDisconnect").onclick = () => {
-  if (cloud.pending && !confirm("Some changes haven't uploaded yet. Disconnect anyway? (They stay saved on this computer.)")) return;
-  cloud.disconnect(); dlg.close();
+  if (cloud.pending && !confirm("Some changes haven't uploaded yet. Sign out anyway? (They stay saved on this computer.)")) return;
+  cloud.signOut(); dlg.close();
 };
 // pick up changes made on another computer when coming back to this tab
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") cloud.sync(); });
 window.addEventListener("beforeunload", (e) => {
-  if (cloud.cfg && cloud.pending) { cloud.sync(); e.preventDefault(); e.returnValue = ""; }
+  if (cloud.on && cloud.pending) { cloud.sync(); e.preventDefault(); e.returnValue = ""; }
 });
 
 // ask the browser not to clear our saved guides when it is low on space
@@ -602,7 +705,7 @@ render();
 refreshGuideList();
 showSaved();
 cloud.show();
-cloud.sync();
+cloud.restore().then(() => { cloud.show(); cloud.sync(); });
 if (!canSave) {
   notice("⚠ This browser is not letting the app save (private / incognito window?). Use <b>Download Excel</b> before closing so you don't lose your work.");
 } else if (returning) {
