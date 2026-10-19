@@ -36,6 +36,13 @@
   .row textarea { width: 100%; min-height: 110px; border: 0; border-right: 1px solid var(--line); background: transparent; padding: 10px 12px; font: inherit; font-size: 15px; resize: vertical; }
   .row textarea.code { font-weight: 700; font-size: 17px; color: var(--navy); }
   .row textarea:focus { outline: 2px solid var(--gold); outline-offset: -2px; background: #FFFBEF; }
+  .steps { border-right: 1px solid var(--line); padding: 8px 10px 6px; min-height: 110px; }
+  .step { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+  .step .num { flex: 0 0 24px; height: 24px; margin-top: 1px; border-radius: 50%; background: var(--navy); color: #fff;
+               font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .row .steps textarea { min-height: 0; height: 26px; border: 0; padding: 3px 4px; resize: none; overflow: hidden; border-radius: 4px; }
+  .add-step { background: transparent; color: var(--muted); font-size: 13px; padding: 4px 6px; margin-left: 28px; }
+  .add-step:hover { color: var(--navy); }
   .row .actions { display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .field-label { display: none; }
   .add { margin-top: 12px; width: 100%; background: #fff; color: var(--navy); border: 2px dashed var(--line); padding: 14px; }
@@ -72,6 +79,8 @@
     .table-head { display: none; }
     .row { grid-template-columns: 1fr; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
     .row textarea { border-right: 0; border-bottom: 1px solid var(--line); min-height: 80px; }
+    .steps { border-right: 0; border-bottom: 1px solid var(--line); min-height: 0; }
+    .row .steps textarea { border-bottom: 0; }
     .field-label { display: block; background: var(--gold); color: var(--navy); font-weight: 700; font-size: 12px; padding: 4px 12px; }
     .row .actions { flex-direction: row; justify-content: flex-end; }
   }
@@ -287,6 +296,11 @@ function render() {
     fields.forEach(([label, cls, ph], j) => {
       const wrap = document.createElement("div");
       wrap.innerHTML = `<span class="field-label">${label.toUpperCase()}</span>`;
+      if (j === 2) {
+        wrap.appendChild(stepsEditor(i));
+        el.appendChild(wrap);
+        return;
+      }
       const ta = document.createElement("textarea");
       ta.className = cls;
       ta.placeholder = ph;
@@ -310,6 +324,87 @@ function render() {
     el.appendChild(act);
     box.appendChild(el);
   });
+}
+
+const autosize = (ta) => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
+const cleanStep = (t) => t.replace(/\s*\n\s*/g, " ").replace(/^\s*(\d+[.)]|•|-|\*)\s+/, "");
+
+// "Steps to fix" as a numbered list: one box per step, Enter starts the next step,
+// Backspace at the start of a step joins it to the one above. Stored as one line per step.
+function stepsEditor(i) {
+  const box = document.createElement("div");
+  box.className = "steps";
+  const commit = (items) => { state.rows[i][2] = items.join("\n"); save(); };
+
+  function draw(focusAt, caret) {
+    const items = state.rows[i][2] ? state.rows[i][2].split("\n") : [""];
+    box.innerHTML = "";
+    items.forEach((text, k) => {
+      const line = document.createElement("div");
+      line.className = "step";
+      const num = document.createElement("span");
+      num.className = "num";
+      num.textContent = k + 1;
+      const ta = document.createElement("textarea");
+      ta.rows = 1;
+      ta.value = text;
+      ta.setAttribute("aria-label", "Step " + (k + 1));
+      if (k === 0) ta.placeholder = "Type step 1, then press Enter for the next";
+      ta.addEventListener("input", () => {
+        if (ta.value.includes("\n")) ta.value = ta.value.replace(/\n/g, " ");
+        items[k] = ta.value; commit(items); autosize(ta);
+      });
+      ta.addEventListener("keydown", (e) => {
+        const atStart = ta.selectionStart === 0 && ta.selectionEnd === 0;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const pos = ta.selectionStart;
+          items.splice(k, 1, ta.value.slice(0, pos), ta.value.slice(pos));
+          commit(items); draw(k + 1, 0);
+        } else if (e.key === "Backspace" && atStart && k > 0) {
+          e.preventDefault();
+          const joinAt = items[k - 1].length;
+          items.splice(k - 1, 2, items[k - 1] + items[k]);
+          commit(items); draw(k - 1, joinAt);
+        } else if (e.key === "ArrowUp" && atStart && k > 0) {
+          e.preventDefault(); draw(k - 1, items[k - 1].length);
+        } else if (e.key === "ArrowDown" && ta.selectionStart === ta.value.length && k < items.length - 1) {
+          e.preventDefault(); draw(k + 1, 0);
+        }
+      });
+      ta.addEventListener("paste", (e) => {  // pasting several lines makes several steps
+        const text = (e.clipboardData || window.clipboardData).getData("text");
+        if (!/\n/.test(text)) return;
+        e.preventDefault();
+        const parts = text.split(/\r?\n/).map(cleanStep).filter((t) => t.trim());
+        if (!parts.length) return;
+        const before = ta.value.slice(0, ta.selectionStart), after = ta.value.slice(ta.selectionEnd);
+        parts[0] = before + parts[0];
+        const last = parts.length - 1, caretAt = parts[last].length;
+        parts[last] += after;
+        items.splice(k, 1, ...parts);
+        commit(items); draw(k + last, caretAt);
+      });
+      line.append(num, ta);
+      box.appendChild(line);
+    });
+    const add = document.createElement("button");
+    add.className = "add-step";
+    add.type = "button";
+    add.textContent = "+ Add step";
+    add.onclick = () => { items.push(""); commit(items); draw(items.length - 1, 0); };
+    box.appendChild(add);
+
+    const finish = () => {
+      const tas = box.querySelectorAll("textarea");
+      tas.forEach(autosize);
+      if (focusAt != null && tas[focusAt]) { tas[focusAt].focus(); tas[focusAt].setSelectionRange(caret, caret); }
+    };
+    // move the cursor right away so fast typing after Enter isn't lost; size boxes once they're on the page
+    if (box.isConnected) finish(); else requestAnimationFrame(finish);
+  }
+  draw();
+  return box;
 }
 
 function move(i, d) {
@@ -371,6 +466,9 @@ async function download() {
       const c = r.getCell(j + 1);
       c.value = v || null;
       const where = j === 0 && v.match(/^([\s\S]*?)\n(\([^)]*\))$/);  // "Name\n(Optel screen)" -> small grey second line
+      if (j === 2 && v) c.value = { richText: lines(fix).flatMap((t, k) => [
+        { text: (k ? "\n" : "") + (k + 1) + ". ", font: { name: FONT, size: 13, bold: true, color: { argb: NAVY } } },
+        { text: t, font: { name: FONT, size: 13, color: { argb: "FF222222" } } }]) };
       if (where) c.value = { richText: [
         { text: where[1], font: { name: FONT, size: 16, bold: true, color: { argb: NAVY } } },
         { text: "\n" + where[2], font: { name: FONT, size: 11, italic: true, color: { argb: "FF6B7B8C" } } }] };
@@ -719,6 +817,7 @@ window.addEventListener("beforeunload", (e) => {
   if (cloud.on && cloud.pending) { cloud.sync(); e.preventDefault(); e.returnValue = ""; }
 });
 
+window.addEventListener("resize", () => document.querySelectorAll(".steps textarea").forEach(autosize));
 // ask the browser not to clear our saved guides when it is low on space
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
