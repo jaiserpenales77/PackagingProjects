@@ -10,8 +10,11 @@ and downloads it as a formatted Excel file.
   Click **💾 Save** (or press Ctrl+S / ⌘S) to save right away; with cloud save on it uploads immediately
   and the button says whether the upload worked.
 - **My guides** – keep several guides in progress (e.g. one per machine) and switch between them.
-- **Pictures** – each error code can have a picture (from a file or a phone camera). Click a picture to mark the
-  problem area with a box, circle, arrow or label; the rest of the photo can be dimmed. A machine picture goes on its own
+- **Pictures** – each error code can have a picture (from a file or a phone camera). Pick several photos at once to
+  put them together (automatic, side by side, stacked or grid, with numbered captions), or add more photos later.
+  Click a picture to crop or rotate it and mark the problem area with a box, circle, arrow or label; the rest of the
+  photo can be dimmed. The Move tool selects, drags and resizes marks, labels can be dragged with any tool and
+  double-clicked to change their words, and marks stay editable after saving. A machine picture goes on its own
   "Machine Map" tab in the Excel file. Pictures are included in the Excel download and come back with Open Excel.
   Photos are not published with the app: they stay in your browser and, with cloud save, in locked files.
 - **Cloud save with a password (other computers)** – click **☁ Cloud save**.

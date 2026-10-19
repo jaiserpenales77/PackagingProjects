@@ -82,6 +82,20 @@
   #picDlg { max-width: 1100px; }
   .pic-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line); font-size: 14px; }
   .pic-tools button { padding: 7px 11px; }
+  .tool-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tool-group + .tool-group { padding-left: 10px; border-left: 1px solid var(--line); }
+  .crop-actions[hidden] { display: none; }
+  .pic-tools button:disabled { opacity: .45; cursor: default; }
+  .combine-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin: 12px 0; }
+  .combine-card { position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--band); }
+  .combine-card img { width: 100%; height: 130px; object-fit: contain; background: #222; border-radius: 4px; display: block; }
+  .combine-card input { margin-top: 6px; font-size: 13px; }
+  .combine-num { position: absolute; top: 12px; left: 12px; background: var(--navy); color: #fff; font-weight: 700; font-size: 13px;
+                 width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .combine-btns { display: flex; justify-content: center; gap: 2px; margin-top: 4px; }
+  .combine-layout { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 10px 0 4px; }
+  .combine-layout label { display: inline-flex; align-items: center; gap: 5px; }
+  .dlg .combine-layout input { width: auto; margin: 0; }
   .pic-tools button.on { background: var(--navy); color: #fff; }
   .pic-stage { background: #2b2b2b; display: flex; justify-content: center; align-items: center; }
   .pic-stage canvas { max-width: 100%; max-height: 68vh; touch-action: none; cursor: crosshair; display: block; }
@@ -175,7 +189,8 @@
   <div id="rows"></div>
   <button class="add" id="add">+ Add error code</button>
   <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.
-    Add a picture to an error code, then mark the problem area with a box, circle, arrow or label.</p>
+    Add pictures to an error code (pick several at once to put them together), then crop, rotate and mark the problem
+    area with a box, circle, arrow or label. Marks and labels can be moved or changed later.</p>
   <p class="hint"><b>Your work saves automatically</b> in this browser as you type, so you can close the app and pick up where you left off.
     Click <b>💾 Save</b> (or press Ctrl+S) any time to save right away.
     To open your guides on another computer, turn on <b>☁ Cloud save</b> once, then on the other computer click it and type your password. You can also click <b>Download Excel</b>
@@ -184,27 +199,57 @@
 
 <dialog id="picDlg">
   <h2 id="picTitle">Picture</h2>
-  <div class="pic-tools">
-    <span>Mark the area:</span>
-    <button class="secondary on" data-tool="box">▭ Box</button>
-    <button class="secondary" data-tool="circle">◯ Circle</button>
-    <button class="secondary" data-tool="arrow">➜ Arrow</button>
-    <button class="secondary" data-tool="text">T Label</button>
-    <button class="ghost" id="picUndo">↶ Undo</button>
-    <label><input type="checkbox" id="picDim" checked> Dim the rest</label>
+  <div id="editView">
+    <div class="pic-tools">
+      <div class="tool-group" role="toolbar" aria-label="Tools">
+        <button class="secondary" data-tool="move" title="Select, move and resize marks">✥ Move</button>
+        <button class="secondary on" data-tool="box">▭ Box</button>
+        <button class="secondary" data-tool="circle">◯ Circle</button>
+        <button class="secondary" data-tool="arrow">➜ Arrow</button>
+        <button class="secondary" data-tool="text">T Label</button>
+        <button class="secondary" data-tool="crop">⛶ Crop</button>
+      </div>
+      <div class="tool-group">
+        <button class="ghost" id="picRotate" title="Turn a quarter turn clockwise">⟳ Rotate</button>
+        <button class="ghost" id="picAddPhoto" title="Add more photos next to or under this one">+ Add photo</button>
+        <button class="ghost" id="picDelete" title="Delete the selected mark (Delete key)" disabled>🗑 Delete mark</button>
+        <button class="ghost" id="picUndo" title="Undo (Ctrl+Z)">↶ Undo</button>
+        <label><input type="checkbox" id="picDim" checked> Dim the rest</label>
+      </div>
+      <div class="tool-group crop-actions" id="cropActions" hidden>
+        <button class="primary" id="cropApply">✓ Apply crop</button>
+        <button class="ghost" id="cropCancel">Cancel crop</button>
+      </div>
+    </div>
+    <div class="pic-stage"><canvas id="picCanvas"></canvas></div>
+    <div class="dlg">
+      <div class="small" id="picHelp"></div>
+      <div class="row2">
+        <button class="ghost del" id="picRemove">Remove picture</button>
+        <button class="secondary" id="picReplace">Use different photos</button>
+        <button class="ghost" id="picCancel">Cancel</button>
+        <button class="primary" id="picSave">Save picture</button>
+      </div>
+    </div>
   </div>
-  <div class="pic-stage"><canvas id="picCanvas"></canvas></div>
-  <div class="dlg">
-    <div class="small" id="picHelp">Drag on the photo to draw. For a label, pick "T Label" and click where it should go.</div>
+  <div class="dlg" id="combineView" hidden>
+    <p style="margin-top:0"><b>Put these photos together into one picture.</b> Add a caption to each one if you like
+      (for example "Labeler screen"), and change the order with the arrows. Next you can mark, crop and label it.</p>
+    <div class="combine-list" id="combineList"></div>
+    <button class="ghost" id="combineAdd">+ Add another photo</button>
+    <div class="combine-layout"><b>Layout:</b>
+      <label><input type="radio" name="combineLayout" value="auto" checked> Automatic</label>
+      <label><input type="radio" name="combineLayout" value="side"> Side by side</label>
+      <label><input type="radio" name="combineLayout" value="stack"> Stacked</label>
+      <label><input type="radio" name="combineLayout" value="grid"> Grid</label>
+    </div>
     <div class="row2">
-      <button class="ghost del" id="picRemove">Remove picture</button>
-      <button class="secondary" id="picReplace">Use a different photo</button>
-      <button class="ghost" id="picCancel">Cancel</button>
-      <button class="primary" id="picSave">Save picture</button>
+      <button class="ghost" id="combineCancel">Cancel</button>
+      <button class="primary" id="combineGo">Put together and mark up</button>
     </div>
   </div>
 </dialog>
-<input type="file" id="picFile" accept="image/*" hidden>
+<input type="file" id="picFile" accept="image/*" multiple hidden>
 
 <dialog id="cloudDlg">
   <h2>☁ Cloud save</h2>
@@ -567,7 +612,11 @@ function usedPics() {
   Object.values(db.guides).forEach((g) => {
     if (g.deleted) return;
     if (g.map) used.add(g.map);
-    g.rows.forEach((r) => { if (r[3]) used.add(r[3]); });
+    g.rows.forEach((r) => {
+      if (r[3]) used.add(r[3]);
+      if (r[4] && r[4].base) used.add(r[4].base);
+    });
+    if (g.mapEdit && g.mapEdit.base) used.add(g.mapEdit.base);
   });
   return used;
 }
@@ -593,12 +642,23 @@ async function fileToDataUrl(file, max = 1400) {  // shrink phone photos so they
   } finally { URL.revokeObjectURL(url); }
 }
 
+// rows keep the finished picture in [3] and, when it has marks, what is needed to edit them again in [4]:
+// { base: picture without marks, marks: [...], dim }
 const rowTarget = (i) => ({
   title: () => (state.rows[i][0] || "").split("\n")[0] || "Error code " + (i + 1),
   get: () => state.rows[i][3] || "",
-  set: (ref) => { state.rows[i][3] = ref; },
+  edit: () => state.rows[i][4] || null,
+  set: (ref, edit) => {
+    state.rows[i][3] = ref;
+    if (edit) state.rows[i][4] = edit; else state.rows[i].splice(4);
+  },
 });
-const mapTarget = () => ({ title: () => "Machine picture", get: () => state.map || "", set: (ref) => { state.map = ref; } });
+const mapTarget = () => ({
+  title: () => "Machine picture",
+  get: () => state.map || "",
+  edit: () => state.mapEdit || null,
+  set: (ref, edit) => { state.map = ref; if (edit) state.mapEdit = edit; else delete state.mapEdit; },
+});
 
 function picCell(target, isMap) {
   const cell = document.createElement("div");
@@ -609,57 +669,195 @@ function picCell(target, isMap) {
     const img = document.createElement("img");
     img.src = src;
     img.alt = target.title();
-    img.title = "Click to mark or change";
-    img.onclick = () => openPicEditor(target, src, false);
+    img.title = "Click to mark, crop or change";
+    img.onclick = () => editPicture(target);
     cell.appendChild(img);
-    if (!isMap) cell.insertAdjacentHTML("beforeend", '<div class="small">Click to mark or change</div>');
+    if (!isMap) cell.insertAdjacentHTML("beforeend", '<div class="small">Click to mark, crop or change</div>');
   } else if (ref) {
     cell.insertAdjacentHTML("beforeend", `<div class="small">${picsReady ? "Picture is downloading from cloud save…" : "Loading picture…"}</div>`);
   } else {
     const add = document.createElement("button");
     add.className = "add-pic";
     add.type = "button";
-    add.textContent = isMap ? "+ Add machine picture" : "+ Add picture";
-    add.onclick = () => pickPhoto((dataUrl) => openPicEditor(target, dataUrl, true));
+    add.textContent = isMap ? "+ Add machine picture" : "+ Add pictures";
+    add.title = "Pick one photo, or several to put together";
+    add.onclick = () => pickPhotos((urls) => startWithPhotos(target, urls));
     cell.appendChild(add);
   }
   return cell;
 }
 
-let photoPicked = null;
-function pickPhoto(then) { photoPicked = then; $("picFile").click(); }
+let photosPicked = null;
+function pickPhotos(then) { photosPicked = then; $("picFile").click(); }
 $("picFile").onchange = async (e) => {
-  const f = e.target.files[0];
+  const files = [...e.target.files];
   e.target.value = "";
-  if (!f || !photoPicked) return;
-  try { photoPicked(await fileToDataUrl(f)); }
-  catch (err) { alert("Could not open that photo. Try a JPG or PNG picture."); }
+  if (!files.length || !photosPicked) return;
+  try { photosPicked(await Promise.all(files.map((f) => fileToDataUrl(f)))); }
+  catch (err) { alert("Could not open one of those photos. Try JPG or PNG pictures."); }
+};
+function startWithPhotos(target, urls) {
+  if (urls.length === 1) openPicEditor(target, urls[0], { isNew: true });
+  else openCombine(target, urls);
+}
+async function editPicture(target) {
+  const e = target.edit(), base = e && picSrc(e.base);
+  if (base) openPicEditor(target, base, { marks: e.marks, dim: e.dim });
+  else openPicEditor(target, picSrc(target.get()), {});
+}
+
+// ---------------------------------------------------------------- putting several photos together
+const cmb = { target: null, items: [] };
+function openCombine(target, urls, keepItems) {
+  cmb.target = target;
+  if (!keepItems) cmb.items = urls.map((url) => ({ url, caption: "" }));
+  $("picTitle").textContent = target.title() + " - put photos together";
+  $("editView").hidden = true;
+  $("combineView").hidden = false;
+  drawCombineList();
+  if (!pdlg.open) pdlg.showModal();
+}
+function drawCombineList() {
+  const list = $("combineList");
+  list.innerHTML = "";
+  cmb.items.forEach((it, k) => {
+    const card = document.createElement("div");
+    card.className = "combine-card";
+    card.innerHTML = `<div class="combine-num">${k + 1}</div><img alt="Photo ${k + 1}">
+      <input placeholder="Caption, e.g. Labeler screen" aria-label="Caption for photo ${k + 1}">
+      <div class="combine-btns"><button class="ghost" title="Move earlier">◀</button><button class="ghost" title="Move later">▶</button>
+      <button class="ghost del" title="Leave this photo out">✕</button></div>`;
+    card.querySelector("img").src = it.url;
+    const cap = card.querySelector("input");
+    cap.value = it.caption;
+    cap.oninput = () => { it.caption = cap.value; };
+    const [left, right, drop] = card.querySelectorAll("button");
+    left.disabled = k === 0;
+    right.disabled = k === cmb.items.length - 1;
+    left.onclick = () => { [cmb.items[k - 1], cmb.items[k]] = [cmb.items[k], cmb.items[k - 1]]; drawCombineList(); };
+    right.onclick = () => { [cmb.items[k + 1], cmb.items[k]] = [cmb.items[k], cmb.items[k + 1]]; drawCombineList(); };
+    drop.onclick = () => { cmb.items.splice(k, 1); drawCombineList(); };
+    list.appendChild(card);
+  });
+  $("combineGo").disabled = !cmb.items.length;
+}
+async function composePhotos(items, layout) {
+  const ims = await Promise.all(items.map((it) => loadImage(it.url)));
+  const ratio = ims.map((im) => im.naturalWidth / im.naturalHeight);
+  const BAR = items.length > 1 || items.some((it) => it.caption.trim()) ? 56 : 0, GAP = 14;
+  const plan = (kind) => {  // where each photo goes for a layout
+    const cells = ims.map((im, k) => ({ im, k }));
+    if (kind === "side") {
+      let x = 0;
+      cells.forEach((c) => { c.h = 800; c.w = Math.round(800 * ratio[c.k]); c.x = x; c.y = 0; x += c.w + GAP; });
+      return { cells, W: x - GAP, H: 800 + BAR };
+    }
+    if (kind === "stack") {
+      let y = 0;
+      cells.forEach((c) => { c.w = 1100; c.h = Math.round(1100 / ratio[c.k]); c.x = 0; c.y = y; y += c.h + BAR + GAP; });
+      return { cells, W: 1100, H: y - GAP };
+    }
+    let y = 0;  // grid, two across
+    for (let r = 0; r < cells.length; r += 2) {
+      const row = cells.slice(r, r + 2);
+      row.forEach((c, j) => { c.w = 700; c.h = Math.round(700 / ratio[c.k]); c.x = j * (700 + GAP); c.y = y; });
+      y += Math.max(...row.map((c) => c.h)) + BAR + GAP;
+    }
+    return { cells, W: cells.length > 1 ? 700 * 2 + GAP : 700, H: y - GAP };
+  };
+  // Automatic: the layout whose shape best fits the picture cell in the guide (about 4:3)
+  const best = layout !== "auto" ? plan(layout)
+    : ["side", "stack", "grid"].map(plan).sort((a, b) => Math.abs(Math.log(a.W / a.H / 1.3)) - Math.abs(Math.log(b.W / b.H / 1.3)))[0];
+  const out = document.createElement("canvas");
+  out.width = best.W; out.height = best.H;
+  const c = out.getContext("2d");
+  c.fillStyle = "#fff"; c.fillRect(0, 0, best.W, best.H);
+  best.cells.forEach((cell) => {
+    if (BAR) {
+      c.fillStyle = "#1F3A4D"; c.fillRect(cell.x, cell.y, cell.w, BAR);
+      c.fillStyle = "#fff"; c.font = 'bold 30px "Segoe UI", Arial, sans-serif'; c.textBaseline = "middle";
+      const cap = items[cell.k].caption.trim();
+      c.fillText(`${cell.k + 1}${cap ? "   " + cap : ""}`, cell.x + 18, cell.y + BAR / 2 + 1, cell.w - 30);
+    }
+    c.drawImage(cell.im, cell.x, cell.y + BAR, cell.w, cell.h);
+  });
+  return out;
+}
+$("combineCancel").onclick = () => pdlg.close();
+$("combineAdd").onclick = () => pickPhotos((urls) => { cmb.items.push(...urls.map((url) => ({ url, caption: "" }))); drawCombineList(); });
+$("combineGo").onclick = async () => {
+  const layout = document.querySelector('input[name="combineLayout"]:checked').value;
+  const base = await composePhotos(cmb.items, layout);
+  openPicEditor(cmb.target, base, { isNew: true });
 };
 
-// marking tool
-const RED = "#E53935";
-const ed = { target: null, img: null, marks: [], tool: "box", draft: null, isNew: false };
+// ---------------------------------------------------------------- marking tool
+const RED = "#E53935", SEL = "#1F6FEB";
+const ed = { target: null, base: null, marks: [], tool: "box", draft: null, sel: -1, drag: null, crop: null,
+             history: [], dirty: false, isNew: false, prevTool: "box" };
 const pdlg = $("picDlg"), canvas = $("picCanvas"), ctx = canvas.getContext("2d");
+const HELP = {
+  move: "Click a mark to select it. Drag it to move it, drag the white squares to resize it. Double-click a label to change its words. Delete removes it.",
+  box: "Drag on the photo to draw a box. Labels can be dragged to a new spot with any tool.",
+  circle: "Drag on the photo to draw a circle. Labels can be dragged to a new spot with any tool.",
+  arrow: "Drag from where the arrow starts to where it points.",
+  text: "Click where the label should go. Drag a label to move it, double-click it to change the words.",
+  crop: "Drag over the part of the photo to keep, adjust the corners, then click Apply crop.",
+};
 
-async function openPicEditor(target, src, isNew) {
-  ed.target = target; ed.isNew = isNew; ed.marks = []; ed.draft = null;
-  ed.img = await loadImage(src);
-  canvas.width = ed.img.naturalWidth; canvas.height = ed.img.naturalHeight;
+function toCanvas(src) {
+  const c = document.createElement("canvas");
+  c.width = src.naturalWidth || src.width; c.height = src.naturalHeight || src.height;
+  c.getContext("2d").drawImage(src, 0, 0);
+  return c;
+}
+function setBase(c) { ed.base = c; canvas.width = c.width; canvas.height = c.height; }
+function limitBase(max = 2200) {  // keep pictures a sensible size; marks scale with the photo
+  const big = Math.max(ed.base.width, ed.base.height);
+  if (big <= max) return;
+  const k = max / big, c = document.createElement("canvas");
+  c.width = Math.round(ed.base.width * k); c.height = Math.round(ed.base.height * k);
+  c.getContext("2d").drawImage(ed.base, 0, 0, c.width, c.height);
+  ed.marks.forEach((m) => {
+    ["x1", "y1", "x2", "y2"].forEach((p) => { if (m[p] != null) m[p] *= k; });
+    if (m.lw) m.lw *= k;
+    if (m.fs) m.fs *= k;
+  });
+  setBase(c);
+}
+
+async function openPicEditor(target, source, opts) {
+  ed.target = target; ed.isNew = !!opts.isNew; ed.dirty = !!opts.isNew;
+  ed.marks = JSON.parse(JSON.stringify(opts.marks || []));
+  ed.draft = null; ed.sel = -1; ed.drag = null; ed.crop = null; ed.history = [];
+  setBase(typeof source === "string" ? toCanvas(await loadImage(source)) : source);
+  limitBase();
+  $("picDim").checked = opts.dim !== false;
   $("picTitle").textContent = target.title();
-  $("picRemove").hidden = isNew;
+  $("picRemove").hidden = !target.get();
+  $("combineView").hidden = true;
+  $("editView").hidden = false;
+  setTool(ed.marks.length ? "move" : "box");
   redraw();
   if (!pdlg.open) pdlg.showModal();
 }
 
-function lineWidth(W, H) { return Math.max(4, Math.round(Math.max(W, H) / 220)); }
+const lineWidth = (W, H) => Math.max(4, Math.round(Math.max(W, H) / 220));
+const labelSize = (W, H) => Math.max(18, Math.round(Math.max(W, H) / 34));
+const norm = (m) => ({ x: Math.min(m.x1, m.x2), y: Math.min(m.y1, m.y2), w: Math.abs(m.x2 - m.x1), h: Math.abs(m.y2 - m.y1) });
 function shapePath(c, m) {
-  const x = Math.min(m.x1, m.x2), y = Math.min(m.y1, m.y2), w = Math.abs(m.x2 - m.x1), h = Math.abs(m.y2 - m.y1);
+  const { x, y, w, h } = norm(m);
   c.beginPath();
   if (m.t === "circle") c.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
   else c.roundRect(x, y, w, h, Math.min(18, w / 4, h / 4));
 }
+function labelBox(c, m, W, H) {
+  const fs = m.fs || labelSize(W, H), pad = Math.round(fs / 3);
+  c.font = `bold ${fs}px "Segoe UI", Arial, sans-serif`;
+  const w = c.measureText(m.s).width + pad * 2, h = fs + pad * 2;
+  return { x: Math.min(Math.max(4, m.x1 - w / 2), W - w - 4), y: Math.min(Math.max(4, m.y1 - h / 2), H - h - 4), w, h, fs, pad };
+}
 function drawMarks(c, W, H, marks, dim) {
-  const lw = lineWidth(W, H);
   const areas = marks.filter((m) => m.t === "box" || m.t === "circle");
   if (dim && areas.length) {  // darken everything except the marked areas
     const o = document.createElement("canvas");
@@ -674,6 +872,7 @@ function drawMarks(c, W, H, marks, dim) {
   }
   c.lineJoin = c.lineCap = "round";
   marks.forEach((m) => {
+    const lw = m.lw || lineWidth(W, H);
     if (m.t === "box" || m.t === "circle") {
       shapePath(c, m);
       c.strokeStyle = "#fff"; c.lineWidth = lw + 5; c.stroke();
@@ -689,70 +888,320 @@ function drawMarks(c, W, H, marks, dim) {
         c.stroke();
       });
     } else if (m.t === "text") {
-      const fs = Math.max(18, Math.round(Math.max(W, H) / 34)), pad = Math.round(fs / 3);
-      c.font = `bold ${fs}px "Segoe UI", Arial, sans-serif`;
-      const w = c.measureText(m.s).width + pad * 2, h = fs + pad * 2;
-      const x = Math.min(Math.max(4, m.x1 - w / 2), W - w - 4), y = Math.min(Math.max(4, m.y1 - h / 2), H - h - 4);
-      c.beginPath(); c.roundRect(x, y, w, h, h / 3);
+      const b = labelBox(c, m, W, H);
+      c.beginPath(); c.roundRect(b.x, b.y, b.w, b.h, b.h / 3);
       c.fillStyle = RED; c.fill();
-      c.strokeStyle = "#fff"; c.lineWidth = 3; c.stroke();
+      c.strokeStyle = "#fff"; c.lineWidth = Math.max(3, b.fs / 10); c.stroke();
       c.fillStyle = "#fff"; c.textBaseline = "middle";
-      c.fillText(m.s, x + pad, y + h / 2 + 1);
+      c.fillText(m.s, b.x + b.pad, b.y + b.h / 2 + 1);
     }
   });
 }
-function redraw() {
-  ctx.drawImage(ed.img, 0, 0);
-  drawMarks(ctx, canvas.width, canvas.height, ed.draft ? [...ed.marks, ed.draft] : ed.marks, $("picDim").checked);
-}
+
+// screen pixels -> photo pixels, so handles and click areas feel the same at any zoom
+const px = (n) => n * canvas.width / Math.max(1, canvas.getBoundingClientRect().width);
 function canvasPoint(e) {
   const r = canvas.getBoundingClientRect();
   return { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height };
 }
+function bounds(m) {
+  if (m.t === "text") { const b = labelBox(ctx, m, canvas.width, canvas.height); return { x: b.x, y: b.y, w: b.w, h: b.h }; }
+  return norm(m);
+}
+function handles(m) {
+  if (m.t === "box" || m.t === "circle") return [["x1", "y1"], ["x2", "y1"], ["x1", "y2"], ["x2", "y2"]];
+  if (m.t === "arrow") return [["x1", "y1"], ["x2", "y2"]];
+  return [];
+}
+function handleAt(m, p) {
+  const r = px(12);
+  return handles(m).find(([kx, ky]) => Math.abs(m[kx] - p.x) <= r && Math.abs(m[ky] - p.y) <= r) || null;
+}
+function hits(m, p) {
+  const tol = px(8);
+  if (m.t === "arrow") {
+    const dx = m.x2 - m.x1, dy = m.y2 - m.y1, len2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p.x - m.x1) * dx + (p.y - m.y1) * dy) / len2));
+    return Math.hypot(p.x - (m.x1 + t * dx), p.y - (m.y1 + t * dy)) <= tol + (m.lw || 6);
+  }
+  const b = bounds(m);
+  if (m.t === "circle") {
+    const rx = b.w / 2 + tol, ry = b.h / 2 + tol;
+    return ((p.x - b.x - b.w / 2) / rx) ** 2 + ((p.y - b.y - b.h / 2) / ry) ** 2 <= 1;
+  }
+  return p.x >= b.x - tol && p.x <= b.x + b.w + tol && p.y >= b.y - tol && p.y <= b.y + b.h + tol;
+}
+function topHit(p, onlyLabels) {  // last drawn wins; labels first since they sit on top
+  const order = ed.marks.map((m, i) => i).reverse().sort((a, b) => (ed.marks[b].t === "text") - (ed.marks[a].t === "text"));
+  return order.find((i) => (!onlyLabels || ed.marks[i].t === "text") && hits(ed.marks[i], p)) ?? -1;
+}
+function cropCorner(p) {
+  const r = px(16), c = ed.crop;
+  return [["x1", "y1"], ["x2", "y1"], ["x1", "y2"], ["x2", "y2"]].find(([kx, ky]) => Math.abs(c[kx] - p.x) <= r && Math.abs(c[ky] - p.y) <= r) || null;
+}
+
+function snapshot() {
+  ed.history.push({ base: ed.base, marks: JSON.parse(JSON.stringify(ed.marks)) });
+  if (ed.history.length > 40) ed.history.shift();
+  ed.dirty = true;
+}
+function undo() {
+  const last = ed.history.pop();
+  if (!last) return;
+  setBase(last.base); ed.marks = last.marks; ed.sel = -1; ed.crop = null;
+  showCropActions(); redraw();
+}
+
+function redraw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.drawImage(ed.base, 0, 0);
+  drawMarks(ctx, W, H, ed.draft ? [...ed.marks, ed.draft] : ed.marks, $("picDim").checked);
+  const m = ed.marks[ed.sel];
+  if (m) {  // selection outline and handles
+    const b = bounds(m), pad = px(6), hs = px(9);
+    ctx.save();
+    ctx.setLineDash([px(6), px(4)]); ctx.strokeStyle = SEL; ctx.lineWidth = px(2);
+    ctx.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2);
+    ctx.setLineDash([]);
+    handles(m).forEach(([kx, ky]) => {
+      ctx.fillStyle = "#fff"; ctx.fillRect(m[kx] - hs / 2, m[ky] - hs / 2, hs, hs);
+      ctx.strokeStyle = SEL; ctx.lineWidth = px(2); ctx.strokeRect(m[kx] - hs / 2, m[ky] - hs / 2, hs, hs);
+    });
+    ctx.restore();
+  }
+  if (ed.crop) {
+    const c = ed.crop, x = Math.min(c.x1, c.x2), y = Math.min(c.y1, c.y2), w = Math.abs(c.x2 - c.x1), h = Math.abs(c.y2 - c.y1);
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.rect(x, y, w, h); ctx.fill("evenodd");
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = px(2); ctx.strokeRect(x, y, w, h);
+    ctx.globalAlpha = 0.5; ctx.lineWidth = px(1);
+    [1, 2].forEach((k) => {
+      ctx.beginPath(); ctx.moveTo(x + w * k / 3, y); ctx.lineTo(x + w * k / 3, y + h);
+      ctx.moveTo(x, y + h * k / 3); ctx.lineTo(x + w, y + h * k / 3); ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    const hs = px(14);
+    [[c.x1, c.y1], [c.x2, c.y1], [c.x1, c.y2], [c.x2, c.y2]].forEach(([hx, hy]) => {
+      ctx.fillStyle = "#fff"; ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+    });
+    ctx.restore();
+  }
+  $("picDelete").disabled = !m;
+}
+
+function setTool(t) {
+  if (t !== "crop" && ed.crop) { ed.crop = null; showCropActions(); }
+  if (t === "crop" && ed.tool !== "crop") ed.prevTool = ed.tool;
+  ed.tool = t;
+  document.querySelectorAll("#picDlg [data-tool]").forEach((x) => x.classList.toggle("on", x.dataset.tool === t));
+  $("picHelp").textContent = HELP[t];
+  if (t !== "move") ed.sel = ed.marks[ed.sel] && ed.marks[ed.sel].t === "text" ? ed.sel : -1;
+  canvas.style.cursor = t === "move" ? "default" : "crosshair";
+  redraw();
+}
+function showCropActions() { $("cropActions").hidden = !ed.crop; }
+
 canvas.addEventListener("pointerdown", (e) => {
   const p = canvasPoint(e);
+  if (ed.tool === "crop") {
+    canvas.setPointerCapture(e.pointerId);
+    if (ed.crop) {
+      const corner = cropCorner(p);
+      if (corner) { ed.drag = { kind: "crop-corner", corner }; return; }
+      const c = ed.crop;
+      if (p.x > Math.min(c.x1, c.x2) && p.x < Math.max(c.x1, c.x2) && p.y > Math.min(c.y1, c.y2) && p.y < Math.max(c.y1, c.y2)) {
+        ed.drag = { kind: "crop-move", last: p }; return;
+      }
+    }
+    ed.crop = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+    ed.drag = { kind: "crop-new" };
+    showCropActions();
+    return;
+  }
+  const sel = ed.marks[ed.sel];
+  const handle = sel && handleAt(sel, p);
+  if (handle) {
+    canvas.setPointerCapture(e.pointerId);
+    ed.drag = { kind: "handle", handle, saved: false };
+    return;
+  }
+  const idx = topHit(p, ed.tool !== "move");  // labels can be dragged with any tool
+  if (idx >= 0) {
+    canvas.setPointerCapture(e.pointerId);
+    ed.sel = idx;
+    ed.drag = { kind: "move", last: p, saved: false };
+    redraw();
+    return;
+  }
+  if (ed.tool === "move") { ed.sel = -1; redraw(); return; }
   if (ed.tool === "text") {
     const s = (prompt("Label text (for example: Press RESET ALARM)") || "").trim();
-    if (s) { ed.marks.push({ t: "text", x1: p.x, y1: p.y, s }); redraw(); }
+    if (!s) return;
+    snapshot();
+    ed.marks.push({ t: "text", x1: p.x, y1: p.y, s, fs: labelSize(canvas.width, canvas.height) });
+    ed.sel = ed.marks.length - 1;
+    redraw();
     return;
   }
   canvas.setPointerCapture(e.pointerId);
-  ed.draft = { t: ed.tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+  ed.sel = -1;
+  ed.draft = { t: ed.tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y, lw: lineWidth(canvas.width, canvas.height) };
 });
 canvas.addEventListener("pointermove", (e) => {
-  if (!ed.draft) return;
   const p = canvasPoint(e);
-  ed.draft.x2 = p.x; ed.draft.y2 = p.y;
+  if (ed.draft) { ed.draft.x2 = p.x; ed.draft.y2 = p.y; redraw(); return; }
+  const d = ed.drag;
+  if (!d) {  // show what a press here would do
+    if (ed.tool === "crop") canvas.style.cursor = ed.crop && cropCorner(p) ? "nwse-resize" : "crosshair";
+    else {
+      const sel = ed.marks[ed.sel];
+      canvas.style.cursor = sel && handleAt(sel, p) ? "nwse-resize"
+        : topHit(p, ed.tool !== "move") >= 0 ? "move" : ed.tool === "move" ? "default" : "crosshair";
+    }
+    return;
+  }
+  const clampX = (v) => Math.max(0, Math.min(canvas.width, v)), clampY = (v) => Math.max(0, Math.min(canvas.height, v));
+  if (d.kind === "crop-new") { ed.crop.x2 = clampX(p.x); ed.crop.y2 = clampY(p.y); }
+  else if (d.kind === "crop-corner") { ed.crop[d.corner[0]] = clampX(p.x); ed.crop[d.corner[1]] = clampY(p.y); }
+  else if (d.kind === "crop-move") {
+    const c = ed.crop, w = Math.abs(c.x2 - c.x1), h = Math.abs(c.y2 - c.y1);
+    const x = Math.max(0, Math.min(canvas.width - w, Math.min(c.x1, c.x2) + p.x - d.last.x));
+    const y = Math.max(0, Math.min(canvas.height - h, Math.min(c.y1, c.y2) + p.y - d.last.y));
+    Object.assign(c, { x1: x, y1: y, x2: x + w, y2: y + h });
+    d.last = p;
+  } else {
+    if (!d.saved) { snapshot(); d.saved = true; }  // one undo step per drag
+    const m = ed.marks[ed.sel];
+    if (d.kind === "handle") { m[d.handle[0]] = p.x; m[d.handle[1]] = p.y; }
+    else {
+      const dx = p.x - d.last.x, dy = p.y - d.last.y;
+      m.x1 += dx; m.y1 += dy;
+      if (m.x2 != null) { m.x2 += dx; m.y2 += dy; }
+      d.last = p;
+    }
+  }
   redraw();
 });
 canvas.addEventListener("pointerup", () => {
-  if (!ed.draft) return;
-  const d = ed.draft, min = canvas.width / 80;
-  if (Math.abs(d.x2 - d.x1) > min || Math.abs(d.y2 - d.y1) > min) ed.marks.push(d);
-  ed.draft = null;
+  if (ed.draft) {
+    const d = ed.draft, min = canvas.width / 80;
+    if (Math.abs(d.x2 - d.x1) > min || Math.abs(d.y2 - d.y1) > min) { snapshot(); ed.marks.push(d); }
+    ed.draft = null;
+  }
+  if (ed.drag && ed.drag.kind.startsWith("crop") && ed.crop) {
+    const c = ed.crop;
+    if (Math.abs(c.x2 - c.x1) < px(10) || Math.abs(c.y2 - c.y1) < px(10)) { ed.crop = null; showCropActions(); }
+  }
+  ed.drag = null;
   redraw();
 });
-document.querySelectorAll("#picDlg [data-tool]").forEach((b) => {
-  b.onclick = () => {
-    ed.tool = b.dataset.tool;
-    document.querySelectorAll("#picDlg [data-tool]").forEach((x) => x.classList.toggle("on", x === b));
-  };
+canvas.addEventListener("dblclick", (e) => {
+  const i = topHit(canvasPoint(e), true);
+  if (i < 0) return;
+  const s = (prompt("Change the label text", ed.marks[i].s) || "").trim();
+  if (!s || s === ed.marks[i].s) return;
+  snapshot(); ed.marks[i].s = s; ed.sel = i; redraw();
 });
-$("picUndo").onclick = () => { ed.marks.pop(); redraw(); };
-$("picDim").onchange = redraw;
-$("picCancel").onclick = () => pdlg.close();
-$("picReplace").onclick = () => pickPhoto((dataUrl) => openPicEditor(ed.target, dataUrl, true));
+
+function deleteSelected() {
+  if (!ed.marks[ed.sel]) return;
+  snapshot(); ed.marks.splice(ed.sel, 1); ed.sel = -1; redraw();
+}
+function applyCrop() {
+  const c = ed.crop;
+  if (!c) return;
+  const x = Math.round(Math.min(c.x1, c.x2)), y = Math.round(Math.min(c.y1, c.y2));
+  const w = Math.round(Math.abs(c.x2 - c.x1)), h = Math.round(Math.abs(c.y2 - c.y1));
+  if (w < 20 || h < 20) return;
+  snapshot();
+  const out = document.createElement("canvas");
+  out.width = w; out.height = h;
+  out.getContext("2d").drawImage(ed.base, x, y, w, h, 0, 0, w, h);
+  ed.marks.forEach((m) => { m.x1 -= x; m.y1 -= y; if (m.x2 != null) { m.x2 -= x; m.y2 -= y; } });
+  setBase(out);
+  ed.crop = null; showCropActions();
+  setTool(ed.prevTool === "crop" ? "box" : ed.prevTool);
+}
+function rotate() {  // a quarter turn clockwise
+  snapshot();
+  const H = ed.base.height, out = document.createElement("canvas");
+  out.width = ed.base.height; out.height = ed.base.width;
+  const c = out.getContext("2d");
+  c.translate(out.width, 0); c.rotate(Math.PI / 2); c.drawImage(ed.base, 0, 0);
+  ed.marks.forEach((m) => {
+    [["x1", "y1"], ["x2", "y2"]].forEach(([kx, ky]) => {
+      if (m[kx] == null) return;
+      const x = m[kx], y = m[ky];
+      m[kx] = H - y; m[ky] = x;
+    });
+  });
+  ed.crop = null; showCropActions();
+  setBase(out); redraw();
+}
+async function appendPhotos(urls) {  // add photos to the right or underneath, keeping marks where they are
+  snapshot();
+  for (const url of urls) {
+    const im = await loadImage(url), b = ed.base;
+    const gap = Math.max(8, Math.round(Math.max(b.width, b.height) / 120));
+    const sideW = Math.round(im.naturalWidth * b.height / im.naturalHeight);
+    const side = (b.width + gap + sideW) / b.height <= 2.4;
+    const out = document.createElement("canvas");
+    if (side) { out.width = b.width + gap + sideW; out.height = b.height; }
+    else { out.width = b.width; out.height = b.height + gap + Math.round(im.naturalHeight * b.width / im.naturalWidth); }
+    const c = out.getContext("2d");
+    c.fillStyle = "#fff"; c.fillRect(0, 0, out.width, out.height);
+    c.drawImage(b, 0, 0);
+    if (side) c.drawImage(im, b.width + gap, 0, sideW, b.height);
+    else c.drawImage(im, 0, b.height + gap, b.width, out.height - b.height - gap);
+    setBase(out);
+  }
+  limitBase();
+  redraw();
+}
+
+document.querySelectorAll("#picDlg [data-tool]").forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
+$("picUndo").onclick = undo;
+$("picDelete").onclick = deleteSelected;
+$("picRotate").onclick = rotate;
+$("picAddPhoto").onclick = () => pickPhotos(appendPhotos);
+$("cropApply").onclick = applyCrop;
+$("cropCancel").onclick = () => { ed.crop = null; showCropActions(); redraw(); };
+$("picDim").onchange = () => { ed.dirty = true; redraw(); };
+pdlg.addEventListener("keydown", (e) => {
+  if ($("editView").hidden || /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if ((e.key === "Delete" || e.key === "Backspace") && ed.marks[ed.sel]) { e.preventDefault(); deleteSelected(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); }
+  else if (e.key === "Enter" && ed.crop) { e.preventDefault(); applyCrop(); }
+});
+pdlg.addEventListener("cancel", (e) => {  // Esc first clears a crop or selection before closing
+  if (!$("editView").hidden && (ed.crop || ed.marks[ed.sel])) {
+    e.preventDefault();
+    ed.crop = null; ed.sel = -1; showCropActions(); redraw();
+  } else if (!$("editView").hidden && ed.dirty && !confirm("Close without saving the picture?")) e.preventDefault();
+});
+$("picCancel").onclick = () => {
+  if (ed.dirty && !confirm("Close without saving the picture?")) return;
+  pdlg.close();
+};
+$("picReplace").onclick = () => pickPhotos((urls) => startWithPhotos(ed.target, urls));
 $("picRemove").onclick = () => {
   if (!confirm("Remove this picture?")) return;
-  ed.target.set(""); pdlg.close(); save(); render(); prunePics();
+  ed.target.set("", null); pdlg.close(); save(); render(); prunePics();
 };
 $("picSave").onclick = async () => {
-  if (!ed.isNew && !ed.marks.length) { pdlg.close(); return; }
-  ed.draft = null; redraw();
+  if (!ed.dirty) { pdlg.close(); return; }
+  ed.draft = null; ed.sel = -1; ed.crop = null; showCropActions(); redraw();
   const ref = await storePic(canvas.toDataURL("image/jpeg", 0.85));
   if (!ref) return;
-  ed.target.set(ref); pdlg.close(); save(); render(); prunePics();
+  let edit = null;
+  if (ed.marks.length) {  // keep the photo without marks so the marks can be moved later
+    const baseRef = await storePic(ed.base.toDataURL("image/jpeg", 0.88));
+    if (baseRef) edit = { base: baseRef, marks: ed.marks, dim: $("picDim").checked };
+  }
+  ed.target.set(ref, edit); pdlg.close(); save(); render(); prunePics();
 };
+
 
 function move(i, d) {
   const j = i + d;
