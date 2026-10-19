@@ -776,45 +776,37 @@ async function download() {
   const machine = state.machine.trim().toUpperCase();
 
   const wb = new ExcelJS.Workbook();
+  const HEAD = 6;  // table header row; rows 1-5 are the banner
   const ws = wb.addWorksheet("Error Codes", {
-    views: [{ state: "frozen", ySplit: 4, showGridLines: false }],
-    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: "4:4" },
+    views: [{ state: "frozen", ySplit: HEAD, showGridLines: false }],
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: `${HEAD}:${HEAD}` },
   });
   ws.columns = [{ width: 34 }, { width: 42 }, { width: 48 }, { width: 58 }];
   const PIC_W = 395, PIC_H = 330;  // picture size in the PICTURE column, in pixels
 
-  ws.mergeCells("A1:C2");
-  const t = ws.getCell("A1");
-  t.value = machine ? `${machine} ERROR CODE GUIDE` : "ERROR CODE GUIDE";
-  t.font = { name: FONT, size: t.value.length > 28 ? 20 : 24, bold: true, color: { argb: "FFFFFFFF" } };
-  t.alignment = { vertical: "middle", indent: 1 };
-  t.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
-  ws.getRow(1).height = ws.getRow(2).height = 26;
-
-  try {
-    const buf = await (await fetch("guide-logo.png")).arrayBuffer();  // Excel guides carry the Pharmavite logo; the app uses logo.png
-    const id = wb.addImage({ buffer: buf, extension: "png" });
-    ws.addImage(id, { tl: { col: 3.05, row: 0.05 }, ext: { width: 70, height: 80 } });
+  let logo = null;
+  try {  // Excel guides carry the Pharmavite logo; the app itself uses logo.png
+    logo = wb.addImage({ buffer: await (await fetch("guide-logo.png")).arrayBuffer(), extension: "png" });
   } catch (e) { /* logo is optional */ }
-
-  if (state.map && picSrc(state.map)) {
-    const c = ws.getCell("A3");
-    c.value = "See the Machine Map tab for where each screen and part is.";
-    c.font = { name: FONT, size: 11, italic: true, color: { argb: "FF6B7B8C" } };
-  }
+  const map = await excelPicture(wb, state.map);
+  const today = new Date().toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  excelBanner(ws, ["A", "B", "C", "D"], "OPERATOR'S TROUBLESHOOTING GUIDE", machine || "ERROR CODE GUIDE",
+    "Find the alarm on the machine screen, then follow the steps in order." +
+      (map ? "   ·   Machine Map tab: where each screen and part is." : ""),
+    "Updated " + today, logo);
 
   ["ERROR CODE", "POSSIBLE PROBLEM", "STEPS TO FIX", "PICTURE"].forEach((h, i) => {
-    const c = ws.getRow(4).getCell(i + 1);
+    const c = ws.getRow(HEAD).getCell(i + 1);
     c.value = h;
     c.font = { name: FONT, size: 14, bold: true, color: { argb: NAVY } };
     c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } };
     c.alignment = { vertical: "middle", indent: 1 };
     c.border = grid;
   });
-  ws.getRow(4).height = 28;
+  ws.getRow(HEAD).height = 28;
 
   for (const [i, [code, prob, fix, picRef]] of rows.entries()) {
-    const r = ws.getRow(5 + i);
+    const r = ws.getRow(HEAD + 1 + i);
     const vals = [code.trim(), bullets(prob), numbered(fix)];
     vals.forEach((v, j) => {
       const c = r.getCell(j + 1);
@@ -828,7 +820,7 @@ async function download() {
         { text: "\n" + where[2], font: { name: FONT, size: 11, italic: true, color: { argb: "FF6B7B8C" } } }] };
       c.font = { name: FONT, size: j === 0 ? 16 : 13, bold: j === 0, color: { argb: j === 0 ? NAVY : "FF222222" } };
       c.alignment = { vertical: j === 0 ? "middle" : "top", wrapText: true, indent: 1 };
-      c.border = grid;
+      c.border = j === 0 ? { ...grid, left: { style: "thick", color: { argb: GOLD } } } : grid;
       if (i % 2) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND } };
     });
     const wrapped = (text, width, size) => {  // rough line count once Excel wraps the text
@@ -844,35 +836,30 @@ async function download() {
     if (pic) {
       const k = Math.min(PIC_W / pic.w, PIC_H / pic.h);
       const w = Math.round(pic.w * k), h = Math.round(pic.h * k);
-      ws.addImage(pic.id, { tl: { col: 3.04, row: 4 + i + 0.04 }, ext: { width: w, height: h } });
+      ws.addImage(pic.id, { tl: { col: 3.04, row: HEAD + i + 0.04 }, ext: { width: w, height: h } });
       r.height = Math.max(r.height, h * 0.75 + 12);
     }
   }
 
-  const nr = 5 + rows.length + 1;
+  const nr = HEAD + 1 + rows.length + 1;
   ws.mergeCells(`A${nr}:D${nr}`);
   const note = ws.getCell(`A${nr}`);
   note.value = NOTE;
   note.font = { name: FONT, size: 13, bold: true, color: { argb: "FF9C1C1C" } };
   note.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDEBD8" } };
   note.alignment = { vertical: "middle", wrapText: true, indent: 1 };
+  note.border = { left: { style: "thick", color: { argb: "FFC62828" } } };
   ws.getRow(nr).height = 36;
 
-  const map = await excelPicture(wb, state.map);
   if (map) {  // the machine picture gets its own tab
     const ms = wb.addWorksheet("Machine Map", {
       views: [{ showGridLines: false }],
       pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
     });
-    ms.getColumn(1).width = 150;
-    const mt = ms.getCell("A1");
-    mt.value = (machine ? machine + " " : "") + "MACHINE MAP";
-    mt.font = { name: FONT, size: 22, bold: true, color: { argb: "FFFFFFFF" } };
-    mt.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
-    mt.alignment = { vertical: "middle", indent: 1 };
-    ms.getRow(1).height = 40;
+    ms.columns = [{ width: 122 }, { width: 28 }];
+    excelBanner(ms, ["A", "B"], "MACHINE MAP", machine || "MACHINE", "Where each screen and part is on the machine.", "Updated " + today, logo);
     const k = Math.min(1050 / map.w, 720 / map.h);
-    ms.addImage(map.id, { tl: { col: 0.02, row: 1.3 }, ext: { width: Math.round(map.w * k), height: Math.round(map.h * k) } });
+    ms.addImage(map.id, { tl: { col: 0.02, row: 5.2 }, ext: { width: Math.round(map.w * k), height: Math.round(map.h * k) } });
   }
 
   const blob = new Blob([await wb.xlsx.writeBuffer()],
@@ -882,6 +869,43 @@ async function download() {
   a.download = `${machine ? machine.replace(/[^\w -]/g, "") + " " : ""}Error Code Guide.xlsx`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// title banner for a guide sheet: gold strip, navy title block with the logo panel on the right, how-to line
+function excelBanner(ws, cols, kicker, title, info, right, logo) {
+  const NAVY = "FF1F3A4D", GOLD = "FFF6B53B", FONT = "Aptos Narrow";
+  const first = cols[0], last = cols[cols.length - 1], titleEnd = cols[cols.length - 2];
+  const solid = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+  ws.getRow(1).height = 7;
+  cols.forEach((c) => { ws.getCell(c + "1").fill = solid(GOLD); });
+  ws.getRow(2).height = 30; ws.getRow(3).height = 36;
+  ws.mergeCells(`${first}2:${titleEnd}3`);
+  const t = ws.getCell(first + "2");
+  t.value = { richText: [
+    { text: kicker, font: { name: FONT, size: 11, bold: true, color: { argb: GOLD } } },
+    { text: "\n" + title, font: { name: FONT, size: title.length > 26 ? 22 : 26, bold: true, color: { argb: "FFFFFFFF" } } }] };
+  t.fill = { type: "gradient", gradient: "angle", degree: 0,
+             stops: [{ position: 0, color: { argb: NAVY } }, { position: 1, color: { argb: "FF2F5878" } }] };
+  t.alignment = { vertical: "middle", wrapText: true, indent: 1 };
+  ws.mergeCells(`${last}2:${last}3`);
+  ws.getCell(last + "2").border = { bottom: { style: "thin", color: { argb: "FFD0D7DE" } } };
+  ws.getRow(4).height = 22;
+  ws.mergeCells(`${first}4:${titleEnd}4`);
+  const how = ws.getCell(first + "4");
+  how.value = info;
+  how.font = { name: FONT, size: 10.5, color: { argb: NAVY } };
+  [first, last].forEach((c) => { ws.getCell(c + "4").fill = solid("FFE9EFF5"); });
+  how.alignment = { vertical: "middle", indent: 1 };
+  const upd = ws.getCell(last + "4");
+  upd.value = right;
+  upd.font = { name: FONT, size: 10.5, italic: true, color: { argb: "FF6B7B8C" } };
+  upd.alignment = { vertical: "middle", horizontal: "right", indent: 1 };
+  ws.getRow(5).height = 6;
+  if (logo != null) {  // center the logo in the panel next to the title
+    const EMU = 9525, colPx = (ws.getColumn(cols.length).width || 10) * 7 + 5;  // offsets in EMU, exact in Excel
+    ws.addImage(logo, { tl: { nativeCol: cols.length - 1, nativeColOff: Math.max(0, Math.round((colPx - 64) / 2)) * EMU,
+                              nativeRow: 1, nativeRowOff: 7 * EMU }, ext: { width: 64, height: 74 } });
+  }
 }
 
 // add a picture to the workbook; returns its id and size, or null
@@ -972,14 +996,17 @@ async function openFile(file) {
     for (let n = h + 1; n < grid.length; n++) {
       const r = grid[n];
       const row = [(r[0] || "").trim(), strip(r[1]), strip(r[2]), ""];
-      if (!(row.some(Boolean) || rowPics[n]) || /^note:/i.test(row[0])) continue;
+      if (!(row.some(Boolean) || rowPics[n]) || /^\W*note:/i.test(row[0])) continue;
       if (rowPics[n]) row[3] = (await storePic(rowPics[n])) || "";
       rows.push(row);
     }
     const mapPic = (pictures["Machine Map"] || [])[0];
     const cell = (r, c) => ((grid[r] || [])[c] || "").trim();
-    const title = cell(0, 0).replace(/ERROR CODE GUIDE/i, "").trim();
-    const machineCell = /^see the machine map/i.test(cell(2, 0)) ? "" : cell(2, 1);
+    const banner = [0, 1, 2].map((r) => cell(r, 0)).find((t) => /guide|error code/i.test(t)) || "";
+    const title = banner.split("\n").map((t) => t.trim())
+      .filter((t) => t && !/^operator'?s troubleshooting guide$/i.test(t)).join(" ")
+      .replace(/(operator'?s\s+)?(troubleshooting|error code)\s+guide/i, "").trim();
+    const machineCell = /^machine:?$/i.test(cell(2, 0)) ? cell(2, 1) : "";  // older blank template
     const g = { machine: title || machineCell, rows: rows.length ? rows : [["", "", "", ""]], updated: Date.now() };
     if (mapPic) g.map = (await storePic(mapPic.dataUrl)) || "";
     const id = newId();
