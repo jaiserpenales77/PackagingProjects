@@ -102,7 +102,7 @@
     <button class="primary" id="download">Download Excel</button>
     <button class="secondary" id="openBtn">Open Excel</button>
     <input type="file" id="file" accept=".xlsx" hidden>
-    <button class="secondary" id="example">Load labeler example</button>
+    <button class="secondary" id="example">Load UNI-300VA example</button>
   </div>
 
   <div class="table-head"><div>ERROR CODE</div><div>POSSIBLE PROBLEM</div><div>STEPS TO FIX</div><div></div></div>
@@ -166,21 +166,25 @@
 <script>
 const KEY = "error-code-guide-v1";
 const EXAMPLE = {
-  machine: "LABELER",
+  machine: "UNI-300VA LABELER",
   rows: [
-    ["Missing label", "Label gap sensor not calibrated\nLabels stuck to liner\nPeel plate too far from bottle\nBottles too close together", "Pull the unlabeled bottle(s)\nRe-teach the label gap sensor\nCheck peel plate distance to bottle\nReset error and restart line"],
-    ["Label gap sensor fault", "Sensor not taught for this label\nDirty sensor\nWeb not threaded through sensor", "Check web is threaded through the sensor\nClean sensor\nRun label teach / auto-calibrate\nRestart line"],
-    ["Web break", "Web tension too high\nLiner snagged on a guide\nBad splice or damaged roll", "Remove torn liner\nRe-thread web\nCheck web tension\nRestart line"],
-    ["Low label / End of roll", "Label roll is almost empty or out", "Get next roll (check item # and lot)\nSplice or change roll\nRecord roll change\nRestart line"],
-    ["Splice detected", "Supplier splice in the label roll", "Make sure bottles at the splice were rejected\nCheck labels after splice are correct\nRestart line"],
-    ["Print verification fail", "Coder out of ink / ribbon\nWrong code loaded\nDirty camera lens\nLabel crooked, code out of view", "Pull affected bottles\nCheck code matches batch record\nCheck ink / ribbon, clean print head\nClean camera lens\nNotify QA before restarting"],
-    ["Coder fault", "Ink / ribbon empty\nPrint head dirty or overheated\nCommunication lost", "Check ink / ribbon\nClean print head\nClear coder alarm\nCheck print, then restart line"],
-    ["Consecutive label rejects", "Label placement out of spec\nSensor misaligned\nChangeover not finished", "Check rejected bottles for the cause\nCheck setup settings\nCorrect setting\nRestart line"],
-    ["Reject not confirmed", "Reject air PSI too low\nReject confirm sensor dirty or misaligned", "Find and pull the bottle downstream\nIncrease reject PSI\nTest reject with a bad bottle\nRestart line"],
-    ["Bottle jam / Backup", "Guide rails too tight\nDownstream machine stopped\nFallen bottle", "Clear jam\nCheck guide rail width\nRestart line"],
-    ["Security loop open / Guards open", "Guard bumped or pulled open\nFaulty magnet on guard", "Open and close all guards\nClear errors\nRestart line"],
+    ["Consecutive inspection error\n(Optel screen)", "Labels crooked or wrinkled\nLot / exp code missing, faded or wrong\nWrong label roll loaded", "Stop the line and pull the rejected bottles\nLook at the rejects: label straight? code clear and correct?\nCheck the label roll is the right item # for this batch\nFix what you found (see the matching error below)\nReset the error and restart the line\nWatch the next bottles and tell your lead"],
+    ["Code verification fail\n(Optel screen)", "Lot / exp code missing or faded\nRibbon wrinkled or running out\nWrong code loaded on the coder", "Pull the affected bottles and set them aside for QA\nCheck the code on the label matches the batch record\nCheck the coder ribbon (see ribbon errors)\nReset the error and restart the line\nTell your lead / QA"],
+    ["Missing label / Label presence fail\n(Labeler or Optel screen)", "Labeler ran out of labels\nLabels stuck to each other or to the liner\nLabel web not threaded right", "Pull the unlabeled bottles\nCheck the label roll and that the web follows the threading diagram\nRemove any stuck or folded labels\nReset the error and restart the line"],
+    ["Low label\n(Labeler screen)", "Label roll is almost empty", "Get the next roll ready\nCheck the item # and lot match the batch record\nChange the roll when it runs out\nRecord the roll change"],
+    ["Out of labels / End of roll\n(Labeler screen)", "Label roll is empty", "Stop the line\nLoad the new roll (check item # and lot)\nThread the web using the diagram on the machine\nRecord the roll change\nReset the error and restart the line\nCheck the first labeled bottles"],
+    ["Label web break\n(Labeler screen)", "Label liner torn\nLiner caught on a guide\nBad splice in the roll", "Stop the line\nRemove the torn liner\nRe-thread the web using the diagram on the machine\nReset the error and restart the line\nCheck the first labeled bottles"],
+    ["Ribbon low / Ribbon out\n(Videojet screen)", "Coder ribbon almost used up or empty", "Stop the line\nOpen the coder cassette and replace the ribbon\nFollow the threading diagram inside the cassette\nClose and lock the cassette\nCheck the screen shows RUNNING\nRestart the line and check the first codes"],
+    ["Ribbon break / Ribbon fault\n(Videojet screen)", "Ribbon torn or slipped off\nRibbon threaded wrong\nCassette not locked", "Stop the line\nOpen the cassette and re-thread or replace the ribbon\nClose and lock the cassette\nClear the message on the coder screen\nRestart the line and check the first codes"],
+    ["Coder not ready / Printer offline\n(Videojet screen)", "Coder is stopped or paused\nCassette open or message not cleared\nNo job (code) selected", "Check the message on the Videojet screen and clear it\nMake sure the correct job is selected and matches the batch record\nPress start - the screen should show green RUNNING\nRestart the line and check the first codes"],
+    ["Bottle jam / Fallen bottle\n(Labeler screen)", "Bottle fell over or got stuck\nDamaged or wrong bottles on the line", "Stop the line before reaching in\nRemove the fallen or jammed bottles\nReset the error and restart the line"],
+    ["Indexing wheel fault\n(Labeler screen)", "Bottle stuck at the indexing wheel\nBottles crowded at the infeed", "Stop the line\nRemove the stuck bottle at the indexing wheel\nReset the error and restart the line"],
+    ["Reject bin full\n(Labeler screen)", "Reject bin is full", "Empty the reject bin and keep rejects separate\nReset the error and restart the line"],
+    ["Guard door open\n(Labeler screen)", "A guard door is open or not fully closed", "Close all guard doors until they latch\nReset the error and restart the line"],
+    ["Emergency stop pressed\n(Labeler screen)", "Someone pressed the red E-stop button", "Make sure the area is safe and everyone is clear\nTwist or pull the E-stop button to release it\nReset the error and restart the line"],
   ],
 };
+const NOTE = "NOTE: If these steps don't fix it, or the same error keeps coming back, stop the line and call your lead or mechanic. Do not change machine settings.";
 
 const $ = (id) => document.getElementById(id);
 const STORE = "error-code-guides-v2";
@@ -339,7 +343,7 @@ async function download() {
   ws.mergeCells("A1:B2");
   const t = ws.getCell("A1");
   t.value = machine ? `${machine} ERROR CODE GUIDE` : "ERROR CODE GUIDE";
-  t.font = { name: FONT, size: 24, bold: true, color: { argb: "FFFFFFFF" } };
+  t.font = { name: FONT, size: t.value.length > 28 ? 20 : 24, bold: true, color: { argb: "FFFFFFFF" } };
   t.alignment = { vertical: "middle", indent: 1 };
   t.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
   ws.getRow(1).height = ws.getRow(2).height = 26;
@@ -366,14 +370,31 @@ async function download() {
     vals.forEach((v, j) => {
       const c = r.getCell(j + 1);
       c.value = v || null;
+      const where = j === 0 && v.match(/^([\s\S]*?)\n(\([^)]*\))$/);  // "Name\n(Optel screen)" -> small grey second line
+      if (where) c.value = { richText: [
+        { text: where[1], font: { name: FONT, size: 16, bold: true, color: { argb: NAVY } } },
+        { text: "\n" + where[2], font: { name: FONT, size: 11, italic: true, color: { argb: "FF6B7B8C" } } }] };
       c.font = { name: FONT, size: j === 0 ? 16 : 13, bold: j === 0, color: { argb: j === 0 ? NAVY : "FF222222" } };
       c.alignment = { vertical: j === 0 ? "middle" : "top", wrapText: true, indent: 1 };
       c.border = grid;
       if (i % 2) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND } };
     });
-    const n = Math.max(lines(prob).length, lines(fix).length, 1);
-    r.height = Math.max(40, 18 * n + 8);
+    const wrapped = (text, width, size) => {  // rough line count once Excel wraps the text
+      const per = Math.max(10, Math.floor(width * 11 / size * 1.05));
+      return text ? text.split("\n").reduce((n, t) => n + Math.max(1, Math.ceil(t.length / per)), 0) : 1;
+    };
+    r.height = Math.max(44, wrapped(vals[0], 38, 16) * 22,
+                        Math.max(wrapped(vals[1], 48, 13), wrapped(vals[2], 52, 13)) * 17) + 10;
   });
+
+  const nr = 5 + rows.length + 1;
+  ws.mergeCells(`A${nr}:C${nr}`);
+  const note = ws.getCell(`A${nr}`);
+  note.value = NOTE;
+  note.font = { name: FONT, size: 13, bold: true, color: { argb: "FF9C1C1C" } };
+  note.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDEBD8" } };
+  note.alignment = { vertical: "middle", wrapText: true, indent: 1 };
+  ws.getRow(nr).height = 36;
 
   const blob = new Blob([await wb.xlsx.writeBuffer()],
     { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -393,7 +414,7 @@ async function openFile(file) {
     if (h < 0) { alert('Could not find the "ERROR CODE" header in that file.'); return; }
     const rows = grid.slice(h + 1)
       .map((r) => [(r[0] || "").trim(), strip(r[1]), strip(r[2])])
-      .filter((r) => r.some(Boolean));
+      .filter((r) => r.some(Boolean) && !/^note:/i.test(r[0]));
     const cell = (r, c) => ((grid[r] || [])[c] || "").trim();
     const title = cell(0, 0).replace(/ERROR CODE GUIDE/i, "").trim();
     const g = { machine: title || cell(2, 1), rows: rows.length ? rows : [["", "", ""]], updated: Date.now() };
@@ -416,7 +437,7 @@ $("download").onclick = download;
 $("openBtn").onclick = () => $("file").click();
 $("file").onchange = (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ""; };
 $("example").onclick = () => {
-  if (hasContent(state) && !confirm("Replace this guide with the labeler example?")) return;
+  if (hasContent(state) && !confirm("Replace this guide with the UNI-300VA labeler example?")) return;
   Object.assign(state, JSON.parse(JSON.stringify(EXAMPLE))); save(); render();
 };
 $("guideSelect").onchange = (e) => switchTo(e.target.value);
