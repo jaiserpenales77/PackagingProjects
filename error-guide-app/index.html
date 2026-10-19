@@ -773,9 +773,9 @@ async function download() {
   ws.getRow(1).height = ws.getRow(2).height = 26;
 
   try {
-    const buf = await (await fetch("logo.png")).arrayBuffer();
+    const buf = await (await fetch("guide-logo.png")).arrayBuffer();  // Excel guides carry the Pharmavite logo; the app uses logo.png
     const id = wb.addImage({ buffer: buf, extension: "png" });
-    ws.addImage(id, { tl: { col: 3.05, row: 0.05 }, ext: { width: 80, height: 71 } });
+    ws.addImage(id, { tl: { col: 3.05, row: 0.05 }, ext: { width: 70, height: 80 } });
   } catch (e) { /* logo is optional */ }
 
   if (state.map && picSrc(state.map)) {
