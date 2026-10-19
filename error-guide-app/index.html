@@ -42,6 +42,17 @@
   .add:hover { border-color: var(--navy); }
   .hint { color: var(--muted); font-size: 13px; margin: 10px 2px 0; }
   .status { color: var(--muted); font-size: 13px; margin-left: auto; }
+  .guides { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .guides label { font-weight: 700; color: var(--navy); }
+  .guides select { flex: 1 1 260px; font: inherit; font-size: 15px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .saved { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 99px;
+           background: #D9F2E1; color: #1E6B3A; }
+  .saved.err { background: #FAD4D4; color: var(--danger); }
+  .notice { background: #FFF4D6; border: 1px solid var(--gold); color: var(--navy); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;
+            display: flex; gap: 10px; align-items: center; }
+  .notice button { margin-left: auto; }
+  .notice[hidden] { display: none; }
   .empty { background: #fff; border: 1px solid var(--line); border-top: 0; padding: 24px; text-align: center; color: var(--muted); }
   @media (max-width: 760px) {
     .table-head { display: none; }
@@ -60,6 +71,14 @@
 <div class="bar">Fill in each error code, then download the Excel guide.</div>
 
 <main>
+  <div class="notice" id="notice" hidden></div>
+  <div class="guides">
+    <label for="guideSelect">MY GUIDES:</label>
+    <select id="guideSelect"></select>
+    <button class="secondary" id="newGuide">+ New guide</button>
+    <button class="ghost del" id="deleteGuide">Delete this guide</button>
+    <span class="saved" id="saved">✓ Saved</span>
+  </div>
   <div class="toolbar">
     <div class="machine">
       <label for="machine">MACHINE:</label>
@@ -69,14 +88,14 @@
     <button class="secondary" id="openBtn">Open Excel</button>
     <input type="file" id="file" accept=".xlsx" hidden>
     <button class="secondary" id="example">Load labeler example</button>
-    <button class="ghost del" id="clear">Clear all</button>
   </div>
 
   <div class="table-head"><div>ERROR CODE</div><div>POSSIBLE PROBLEM</div><div>STEPS TO FIX</div><div></div></div>
   <div id="rows"></div>
   <button class="add" id="add">+ Add error code</button>
-  <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.
-    <span class="status" id="status"></span></p>
+  <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.</p>
+  <p class="hint"><b>Your work saves automatically</b> in this browser as you type, so you can close the app and pick up where you left off.
+    To keep a backup or continue on another computer, click <b>Download Excel</b>, then use <b>Open Excel</b> to keep working on it later.</p>
 </main>
 
 <script>
@@ -98,20 +117,83 @@ const EXAMPLE = {
   ],
 };
 
-let state = load();
 const $ = (id) => document.getElementById(id);
+const STORE = "error-code-guides-v2";
+const OLD_KEY = "error-code-guide-v1";
+const blankGuide = () => ({ machine: "", rows: [["", "", ""], ["", "", ""], ["", "", ""]], updated: Date.now() });
+const newId = () => "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const hasContent = (g) => !!(g.machine.trim() || g.rows.some((r) => r.some((v) => v.trim())));
+let canSave = true;
 
-function load() {
-  try {
-    const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && Array.isArray(s.rows)) return s;
-  } catch (e) {}
-  return { machine: "", rows: [["", "", ""], ["", "", ""], ["", "", ""]] };
+function loadStore() {
+  let db = null;
+  try { localStorage.setItem("__test", "1"); localStorage.removeItem("__test"); } catch (e) { canSave = false; }
+  try { db = JSON.parse(localStorage.getItem(STORE)); } catch (e) {}
+  if (!db || !db.guides) {
+    db = { current: null, guides: {} };
+    try {  // bring over work saved by the first version of the app
+      const old = JSON.parse(localStorage.getItem(OLD_KEY));
+      if (old && Array.isArray(old.rows)) { const id = newId(); db.guides[id] = { ...old, updated: Date.now() }; db.current = id; }
+    } catch (e) {}
+  }
+  if (!db.current || !db.guides[db.current]) {
+    const ids = Object.keys(db.guides).sort((a, b) => db.guides[b].updated - db.guides[a].updated);
+    db.current = ids[0] || null;
+  }
+  if (!db.current) { db.current = newId(); db.guides[db.current] = blankGuide(); }
+  return db;
 }
 
+let db = loadStore();
+let state = db.guides[db.current];
+const returning = hasContent(state);
+
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); $("status").textContent = "Saved on this device"; }
-  catch (e) { $("status").textContent = ""; }
+  state.updated = Date.now();
+  try {
+    localStorage.setItem(STORE, JSON.stringify(db));
+    canSave = true;
+  } catch (e) { canSave = false; }
+  showSaved();
+  refreshGuideList();
+}
+
+const when = (t) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+function showSaved() {
+  const el = $("saved");
+  if (canSave) { el.className = "saved"; el.textContent = "✓ Saved " + when(state.updated); }
+  else { el.className = "saved err"; el.textContent = "⚠ Not saving - use Download Excel"; }
+}
+
+function guideLabel(g) {
+  const n = g.rows.filter((r) => r[0].trim()).length;
+  return `${g.machine.trim().toUpperCase() || "Untitled guide"} — ${n} error code${n === 1 ? "" : "s"} — edited ${when(g.updated)}`;
+}
+
+function refreshGuideList() {
+  const sel = $("guideSelect");
+  const ids = Object.keys(db.guides).sort((a, b) => db.guides[b].updated - db.guides[a].updated);
+  sel.innerHTML = "";
+  ids.forEach((id) => {
+    const o = document.createElement("option");
+    o.value = id; o.textContent = guideLabel(db.guides[id]); o.selected = id === db.current;
+    sel.appendChild(o);
+  });
+}
+
+function switchTo(id) {
+  db.current = id; state = db.guides[id];
+  try { localStorage.setItem(STORE, JSON.stringify(db)); } catch (e) {}
+  render(); refreshGuideList(); showSaved();
+}
+
+function notice(html, ms) {
+  const n = $("notice");
+  n.innerHTML = html + '<button class="ghost" aria-label="Close">✕</button>';
+  n.hidden = false;
+  n.querySelector("button").onclick = () => { n.hidden = true; };
+  if (ms) setTimeout(() => { n.hidden = true; }, ms);
 }
 
 function render() {
@@ -244,8 +326,11 @@ async function openFile(file) {
       .filter((r) => r.some(Boolean));
     const cell = (r, c) => ((grid[r] || [])[c] || "").trim();
     const title = cell(0, 0).replace(/ERROR CODE GUIDE/i, "").trim();
-    state = { machine: title || cell(2, 1), rows: rows.length ? rows : [["", "", ""]] };
-    save(); render();
+    const g = { machine: title || cell(2, 1), rows: rows.length ? rows : [["", "", ""]], updated: Date.now() };
+    const id = newId();
+    if (!hasContent(state)) delete db.guides[db.current];  // replace an empty guide instead of piling up blanks
+    db.guides[id] = g; switchTo(id); save();
+    notice(`Opened <b>${file.name.replace(/[<>&]/g, "")}</b>. Your changes now save automatically.`, 6000);
   } catch (e) {
     alert("Could not read that file. Make sure it is an .xlsx error code guide.");
   }
@@ -261,14 +346,32 @@ $("download").onclick = download;
 $("openBtn").onclick = () => $("file").click();
 $("file").onchange = (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ""; };
 $("example").onclick = () => {
-  if (state.rows.some((r) => r.some((v) => v.trim())) && !confirm("Replace what you have with the labeler example?")) return;
-  state = JSON.parse(JSON.stringify(EXAMPLE)); save(); render();
+  if (hasContent(state) && !confirm("Replace this guide with the labeler example?")) return;
+  Object.assign(state, JSON.parse(JSON.stringify(EXAMPLE))); save(); render();
 };
-$("clear").onclick = () => {
-  if (!confirm("Clear everything and start a blank guide?")) return;
-  state = { machine: "", rows: [["", "", ""]] }; save(); render();
+$("guideSelect").onchange = (e) => switchTo(e.target.value);
+$("newGuide").onclick = () => {
+  const id = newId(); db.guides[id] = blankGuide(); switchTo(id); save();
+  $("machine").focus();
 };
+$("deleteGuide").onclick = () => {
+  if (hasContent(state) && !confirm(`Delete "${state.machine.trim() || "Untitled guide"}"? This cannot be undone.`)) return;
+  delete db.guides[db.current];
+  const ids = Object.keys(db.guides).sort((a, b) => db.guides[b].updated - db.guides[a].updated);
+  if (!ids.length) { const id = newId(); db.guides[id] = blankGuide(); ids.push(id); }
+  switchTo(ids[0]); save();
+};
+// ask the browser not to clear our saved guides when it is low on space
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
 render();
+refreshGuideList();
+showSaved();
+if (!canSave) {
+  notice("⚠ This browser is not letting the app save (private / incognito window?). Use <b>Download Excel</b> before closing so you don't lose your work.");
+} else if (returning) {
+  notice(`Welcome back! Continuing <b>${(state.machine.trim().toUpperCase() || "your guide").replace(/[<>&]/g, "")}</b> from ${when(state.updated)}.`, 8000);
+}
 </script>
 </body>
 </html>
