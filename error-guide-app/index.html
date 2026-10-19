@@ -41,6 +41,10 @@
   button { font: inherit; font-weight: 700; border: 0; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
   .primary { background: var(--navy); color: #fff; }
   .secondary { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  .save-btn { background: var(--gold); color: var(--navy); min-width: 96px; }
+  .save-btn:hover { background: #FFC44F; }
+  .save-btn.done { background: #D9F2E1; color: #1E6B3A; }
+  .save-btn.fail { background: #FAD4D4; color: var(--danger); }
   .ghost { background: transparent; color: var(--muted); padding: 6px 8px; }
   .ghost:hover { color: var(--navy); }
   .ghost.del:hover { color: var(--danger); }
@@ -153,6 +157,7 @@
       <label for="machine">MACHINE:</label>
       <input id="machine" placeholder="e.g. LABELER">
     </div>
+    <button class="save-btn" id="saveBtn" title="Save now (Ctrl+S)">💾 Save</button>
     <button class="primary" id="download">Download Excel</button>
     <button class="secondary" id="openBtn">Open Excel</button>
     <input type="file" id="file" accept=".xlsx" hidden>
@@ -172,6 +177,7 @@
   <p class="hint">Put each problem and each step on its own line. Bullets and step numbers are added for you in the Excel file.
     Add a picture to an error code, then mark the problem area with a box, circle, arrow or label.</p>
   <p class="hint"><b>Your work saves automatically</b> in this browser as you type, so you can close the app and pick up where you left off.
+    Click <b>💾 Save</b> (or press Ctrl+S) any time to save right away.
     To open your guides on another computer, turn on <b>☁ Cloud save</b> once, then on the other computer click it and type your password. You can also click <b>Download Excel</b>
     and use <b>Open Excel</b> on the other computer.</p>
 </main>
@@ -1268,7 +1274,7 @@ const cloud = (() => {
   }
 
   return { restore, sync, schedule, show, signIn, setup, signOut, findGist: () => findGist(OWNER),
-           get on() { return !!cfg; }, get pending() { return pending; } };
+           get on() { return !!cfg; }, get pending() { return pending; }, get error() { return lastError; } };
 })();
 
 const dlg = $("cloudDlg");
@@ -1330,6 +1336,34 @@ window.addEventListener("beforeunload", (e) => {
 });
 
 window.addEventListener("resize", () => document.querySelectorAll(".steps textarea").forEach(autosize));
+// manual save: write this computer's copy now and, with cloud save on, upload now instead of waiting
+let saveTimer = null;
+async function manualSave() {
+  const btn = $("saveBtn");
+  clearTimeout(saveTimer);
+  btn.disabled = true;
+  btn.className = "save-btn";
+  btn.textContent = cloud.on ? "Saving…" : "💾 Save";
+  try { localStorage.setItem(STORE, JSON.stringify(db)); canSave = true; } catch (e) { canSave = false; }
+  showSaved();
+  let ok = canSave, msg = "✓ Saved";
+  if (canSave && cloud.on) {
+    await cloud.sync();
+    ok = !cloud.error;
+    msg = ok ? "✓ Saved to cloud" : "Saved here only";
+  } else if (!canSave) msg = "Not saved";
+  btn.disabled = false;
+  btn.className = "save-btn " + (ok ? "done" : "fail");
+  btn.textContent = msg;
+  btn.title = !canSave ? "This browser is not letting the app save. Use Download Excel to keep your work."
+            : !ok ? "Saved on this computer. Cloud save: " + cloud.error : "Save now (Ctrl+S)";
+  saveTimer = setTimeout(() => { btn.className = "save-btn"; btn.textContent = "💾 Save"; btn.title = "Save now (Ctrl+S)"; }, ok ? 2500 : 6000);
+}
+$("saveBtn").onclick = manualSave;
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") { e.preventDefault(); manualSave(); }
+});
+
 // tabs: each button's data-tab matches a panel's data-panel
 function showTab(name) {
   const tabs = [...document.querySelectorAll(".tabs [data-tab]")];

@@ -7,6 +7,8 @@ and downloads it as a formatted Excel file.
 - **Open Excel** – loads a guide you made earlier (or the blank template) so you can edit it.
 - **Saving progress** – everything you type saves automatically in your browser, so you can close the
   app and continue another day. A green "Saved" badge shows the last save time.
+  Click **💾 Save** (or press Ctrl+S / ⌘S) to save right away; with cloud save on it uploads immediately
+  and the button says whether the upload worked.
 - **My guides** – keep several guides in progress (e.g. one per machine) and switch between them.
 - **Pictures** – each error code can have a picture (from a file or a phone camera). Click a picture to mark the
   problem area with a box, circle, arrow or label; the rest of the photo can be dimmed. A machine picture goes on its own
