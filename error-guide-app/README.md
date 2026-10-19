@@ -25,7 +25,7 @@ and downloads it as a formatted Excel file.
 - Without cloud save, you can still move work with **Download Excel** and **Open Excel**.
   Private/incognito windows don't keep saved work.
 
-Logos: `logo.png` (LineUp) is the app's own logo; `guide-logo.png` (Pharmavite) goes on the Excel guides.
+Logos: `logo.svg` / `logo.png` (LineUp) are the app's own logo; `guide-logo.png` (Pharmavite) goes on the Excel guides.
 
 Hosted with GitHub Pages by `.github/workflows/pages.yml`. To turn it on once:
 repo **Settings → Pages → Build and deployment → Source: GitHub Actions**, then re-run the

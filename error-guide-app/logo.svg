@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LineUp">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22344F"/>
+      <stop offset="1" stop-color="#101827"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5E2D0D"/>
+      <stop offset=".3" stop-color="#A65A1A"/>
+      <stop offset=".48" stop-color="#E09443"/>
+      <stop offset=".7" stop-color="#9A5216"/>
+      <stop offset="1" stop-color="#4F250A"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE07A"/>
+      <stop offset=".55" stop-color="#F6C343"/>
+      <stop offset="1" stop-color="#D99A12"/>
+    </linearGradient>
+    <linearGradient id="shelf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F7FB"/>
+      <stop offset="1" stop-color="#B9C4D3"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#tile)"/>
+  <rect x=".75" y=".75" width="62.5" height="62.5" rx="14.25" fill="none" stroke="#FFFFFF" stroke-opacity=".12" stroke-width="1.5"/>
+  <!-- bottles, lined up short to tall -->
+  <g>
+    <rect x="11" y="33" width="11" height="14.5" rx="3" fill="url(#amber)"/>
+    <rect x="13.6" y="31" width="5.8" height="2.6" fill="#6B3410"/>
+    <rect x="12.6" y="28" width="7.8" height="3.6" rx="1.2" fill="url(#gold)"/>
+    <rect x="11" y="37.5" width="11" height="4.5" fill="url(#gold)"/>
+  </g>
+  <g>
+    <rect x="26.5" y="25.5" width="11" height="22" rx="3" fill="url(#amber)"/>
+    <rect x="29.1" y="23.5" width="5.8" height="2.6" fill="#6B3410"/>
+    <rect x="28.1" y="20.3" width="7.8" height="3.8" rx="1.2" fill="url(#gold)"/>
+    <rect x="26.5" y="31.5" width="11" height="5.5" fill="url(#gold)"/>
+  </g>
+  <g>
+    <rect x="42" y="17.5" width="11" height="30" rx="3" fill="url(#amber)"/>
+    <rect x="44.6" y="15.5" width="5.8" height="2.6" fill="#6B3410"/>
+    <rect x="43.6" y="12" width="7.8" height="4" rx="1.2" fill="url(#gold)"/>
+    <rect x="42" y="25.5" width="11" height="6.5" fill="url(#gold)"/>
+  </g>
+  <!-- shine on the glass -->
+  <g fill="#FFFFFF" fill-opacity=".28">
+    <rect x="13" y="43" width="1.6" height="3" rx=".8"/>
+    <rect x="28.5" y="38.5" width="1.6" height="7.5" rx=".8"/>
+    <rect x="44" y="33.5" width="1.6" height="12.5" rx=".8"/>
+  </g>
+  <!-- conveyor shelf -->
+  <rect x="7" y="47.5" width="50" height="6.5" rx="3.25" fill="url(#shelf)"/>
+  <circle cx="11.5" cy="50.75" r="1.7" fill="#7D8BA0"/>
+  <circle cx="52.5" cy="50.75" r="1.7" fill="#7D8BA0"/>
+</svg>
