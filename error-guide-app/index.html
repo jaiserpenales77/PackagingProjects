@@ -62,6 +62,11 @@
   .step .num { flex: 0 0 24px; height: 24px; margin-top: 1px; border-radius: 50%; background: var(--navy); color: #fff;
                font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
   .bullets .step .num { flex: 0 0 8px; height: 8px; margin: 10px 8px 0 8px; background: var(--gold); }
+  .step .num.blank { background: transparent; box-shadow: inset 0 0 0 2px var(--line); color: transparent; }
+  .step .step-del { flex: none; background: transparent; color: var(--muted); padding: 2px 6px; font-size: 13px; opacity: 0; }
+  .step:hover .step-del, .step:focus-within .step-del { opacity: 1; }
+  .step .step-del:hover, .step .step-del:focus { color: var(--danger); opacity: 1; }
+  @media (hover: none) { .step .step-del { opacity: .55; } }
   .row .steps textarea { min-height: 0; height: 26px; border: 0; padding: 3px 4px; resize: none; overflow: hidden; border-radius: 4px; }
   .add-step { background: transparent; color: var(--muted); font-size: 13px; padding: 4px 6px; margin-left: 28px; }
   .add-step:hover { color: var(--navy); }
@@ -467,7 +472,9 @@ const autosize = (ta) => { ta.style.height = "auto"; ta.style.height = ta.scroll
 const cleanStep = (t) => t.replace(/\s*\n\s*/g, " ").replace(/^\s*(\d+[.)]|•|-|\*)\s+/, "");
 
 // "Possible problem" (bullets) and "Steps to fix" (numbers) as lists: one box per item, Enter starts
-// the next item, Backspace at the start of an item joins it to the one above. Stored one line per item.
+// the next item, Backspace at the start of an item joins it to the one above (or removes it when empty),
+// ✕ removes an item. Empty items get no number or bullet and are dropped when you leave the list.
+// Stored one line per item.
 const LISTS = {
   1: { bullet: true, word: "problem", first: "Type a problem, then press Enter for the next" },
   2: { bullet: false, word: "step", first: "Type step 1, then press Enter for the next" },
@@ -486,7 +493,6 @@ function listEditor(i, j) {
       line.className = "step";
       const num = document.createElement("span");
       num.className = "num";
-      num.textContent = opt.bullet ? "" : k + 1;
       const ta = document.createElement("textarea");
       ta.rows = 1;
       ta.value = text;
@@ -494,7 +500,7 @@ function listEditor(i, j) {
       if (k === 0) ta.placeholder = opt.first;
       ta.addEventListener("input", () => {
         if (ta.value.includes("\n")) ta.value = ta.value.replace(/\n/g, " ");
-        items[k] = ta.value; commit(items); autosize(ta);
+        items[k] = ta.value; commit(items); autosize(ta); renumber();
       });
       ta.addEventListener("keydown", (e) => {
         const atStart = ta.selectionStart === 0 && ta.selectionEnd === 0;
@@ -503,6 +509,11 @@ function listEditor(i, j) {
           const pos = ta.selectionStart;
           items.splice(k, 1, ta.value.slice(0, pos), ta.value.slice(pos));
           commit(items); draw(k + 1, 0);
+        } else if (e.key === "Backspace" && atStart && !ta.value && items.length > 1) {
+          e.preventDefault();  // empty item: remove it
+          items.splice(k, 1);
+          commit(items);
+          if (k > 0) draw(k - 1, items[k - 1].length); else draw(0, 0);
         } else if (e.key === "Backspace" && atStart && k > 0) {
           e.preventDefault();
           const joinAt = items[k - 1].length;
@@ -527,9 +538,21 @@ function listEditor(i, j) {
         items.splice(k, 1, ...parts);
         commit(items); draw(k + last, caretAt);
       });
-      line.append(num, ta);
+      const del = document.createElement("button");
+      del.className = "step-del";
+      del.type = "button";
+      del.textContent = "✕";
+      del.title = `Remove this ${opt.word}`;
+      del.setAttribute("aria-label", `Remove ${opt.word} ${k + 1}`);
+      del.onclick = () => {
+        items.splice(k, 1);
+        if (!items.length) items.push("");
+        commit(items); draw(Math.min(k, items.length - 1), 0);
+      };
+      line.append(num, ta, del);
       box.appendChild(line);
     });
+    renumber();
     const add = document.createElement("button");
     add.className = "add-step";
     add.type = "button";
@@ -545,6 +568,24 @@ function listEditor(i, j) {
     // move the cursor right away so fast typing after Enter isn't lost; size boxes once they're on the page
     if (box.isConnected) finish(); else requestAnimationFrame(finish);
   }
+  // numbers count only items with text, so an emptied step leaves no gap in the numbering
+  function renumber() {
+    let n = 0;
+    box.querySelectorAll(".step").forEach((line) => {
+      const has = !!line.querySelector("textarea").value.trim(), num = line.querySelector(".num");
+      num.classList.toggle("blank", !has);
+      num.textContent = opt.bullet || !has ? "" : ++n;
+    });
+  }
+  // leaving the list drops empty items (Excel already leaves them out)
+  box.addEventListener("focusout", (e) => {
+    if (box.contains(e.relatedTarget)) return;
+    const items = (state.rows[i][j] || "").split("\n");
+    const kept = items.filter((t) => t.trim());
+    if (kept.length === items.length || (!kept.length && items.length === 1)) return;
+    commit(kept.length ? kept : [""]);
+    draw();
+  });
   draw();
   return box;
 }
