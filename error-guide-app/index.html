@@ -1328,7 +1328,7 @@ async function download() {
     vals.forEach((v, j) => {
       const c = r.getCell(j + 1);
       c.value = v || null;
-      const where = j === 0 && v.match(/^([\s\S]*?)\n(\([^)]*\))$/);  // "Name\n(Optel screen)" -> small grey second line
+      const where = j === 0 && v.match(/^([\s\S]*?)\n(\([^\n]*\))$/);  // "Name\n(Optel screen)" -> small grey second line
       if (j > 0 && v) c.value = { richText: lines(j === 1 ? prob : fix).flatMap((t, k) => [
         { text: (k ? "\n" : "") + (j === 1 ? "• " : (k + 1) + ". "), font: { name: FONT, size: 13, bold: true, color: { argb: NAVY } } },
         { text: t, font: { name: FONT, size: 13, color: { argb: "FF222222" } } }]) };
