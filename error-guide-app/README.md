@@ -20,6 +20,9 @@ and downloads it as a formatted Excel file.
   resized by their corners (or A− / A+ and the − / + keys) and double-clicked to change their words, and marks stay editable after saving. A machine picture goes on its own
   "Machine Map" tab in the Excel file. Pictures are included in the Excel download and come back with Open Excel.
   Photos are not published with the app: they stay in your browser and, with cloud save, in locked files.
+- **Add from Excel** – adds chosen error codes from an Excel file to the guide that is open, without touching the
+  rest of it. An error code with the same name replaces the existing one by default; for each one you can choose to add
+  it as new or replace any existing error code.
 - **Cloud save with a password (other computers)** – click **☁ Cloud save**.
   - *First computer, once:* click the link to create a GitHub key (only the "gist" box is ticked),
     paste it, and choose an app password.
